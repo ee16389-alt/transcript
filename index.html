@@ -103,6 +103,17 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .empty { color: var(--muted); font-size: .875rem; text-align: center; padding: 2.5rem 1rem; }
 .seg-time { font-size: .72rem; font-weight: 600; color: var(--muted); margin-bottom: .2rem; letter-spacing: .02em; }
 .seg-text { white-space: pre-wrap; word-break: break-word; }
+.seg-translation {
+  white-space: pre-wrap; word-break: break-word;
+  margin-top: .4rem; padding: .4rem .7rem;
+  background: #f0f9ff; border-left: 3px solid #38bdf8;
+  border-radius: 0 4px 4px 0; color: #0369a1;
+  font-size: .85rem;
+}
+.seg-translation-label {
+  font-size: .68rem; font-weight: 600; color: #0369a1;
+  text-transform: uppercase; letter-spacing: .05em; margin-bottom: .15rem;
+}
 .divider  { border: none; border-top: 1px solid var(--border); margin: .85rem 0; }
 
 /* privacy note */
@@ -150,7 +161,17 @@ button:disabled { opacity: .4; cursor: not-allowed; }
     </div>
     <div>
       <label>Gemini 模型</label>
-      <input type="text" id="model" value="gemini-2.5-flash">
+      <input type="text" id="model" value="gemini-2.5-flash-lite">
+    </div>
+    <div>
+      <label>即時翻譯</label>
+      <select id="translate-to">
+        <option value="">不翻譯</option>
+        <option value="英文">翻譯成英文</option>
+        <option value="日文">翻譯成日文</option>
+        <option value="繁體中文">翻譯成繁體中文</option>
+        <option value="西班牙文">翻譯成西班牙文</option>
+      </select>
     </div>
 
   </div>
@@ -318,18 +339,30 @@ function validate() {
 }
 
 // ── Send chunk to Gemini ───────────────────────────────────────────────────
-async function sendToGemini(blob) {
+async function sendToGemini(blob, retryCount = 0) {
   const apiKey   = document.getElementById('api-key').value.trim();
   const language = document.getElementById('language').value;
   const glossary = '';
   const model    = document.getElementById('model').value.trim() || 'gemini-2.5-flash';
   const mimeType = blob.type || 'audio/webm';
 
+  const translateTo = document.getElementById('translate-to').value;
+
   const langLine = language === 'auto'
     ? '自動辨識語言；中文內容請使用繁體中文字形。'
     : `主要語言為${language}，請使用對應的正體字形。`;
 
-  const prompt = [
+  const prompt = translateTo ? [
+    '請完成以下兩件事：',
+    `（1）忠實轉錄這段音訊，不可摘要、改寫或補充沒有說出的內容。${langLine}如有多位講者，格式為 [MM:SS] 講者X：文字；若只有一人則省略講者標示。聽不清楚時保留最接近的原話。`,
+    `（2）將上述轉錄內容翻譯成${translateTo}，翻譯力求自然流暢。`,
+    glossary ? `下列為可能出現的專有名詞，請優先以這些詞彙拼寫：${glossary}` : '',
+    '請嚴格按照以下格式輸出，不可增加任何其他說明：',
+    '【原文】',
+    '（轉錄內容）',
+    '【翻譯】',
+    '（翻譯內容）',
+  ].filter(Boolean).join('\n') : [
     '忠實轉錄這段音訊，不可摘要、改寫或補充沒有說出的內容。',
     langLine,
     '如有多位講者，格式為 [MM:SS] 講者X：文字；若只有一人則省略講者標示，直接輸出文字。',
@@ -359,15 +392,32 @@ async function sendToGemini(blob) {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       const msg = err?.error?.message || res.statusText;
+
+      const retryMatch = msg.match(/retry in ([\d.]+)s/i);
+      if (retryMatch && retryCount < 3) {
+        const waitSec = Math.ceil(parseFloat(retryMatch[1]));
+        for (let i = waitSec; i > 0; i--) {
+          status(`API 限速，${i} 秒後自動重試...`, 'proc');
+          await new Promise(r => setTimeout(r, 1000));
+        }
+        return sendToGemini(blob, retryCount + 1);
+      }
+
       appendSeg('', `⚠️ Gemini 錯誤：${msg}`);
-      status(`第 ${chunkIdx} 段失敗`, 'rec');
+      status(`第 ${chunkIdx} 段轉錄失敗`, 'rec');
       return;
     }
 
     const data = await res.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '（無法辨識）';
+    const raw  = data?.candidates?.[0]?.content?.parts?.[0]?.text || '（無法辨識）';
     const now  = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    appendSeg(now, text.trim());
+
+    const origMatch  = raw.match(/【原文】\s*([\s\S]*?)(?=【翻譯】|$)/);
+    const transMatch = raw.match(/【翻譯】\s*([\s\S]*?)$/);
+    const origText   = origMatch  ? origMatch[1].trim()  : raw.trim();
+    const transText  = transMatch ? transMatch[1].trim() : null;
+
+    appendSeg(now, origText, transText);
     status(`第 ${chunkIdx} 段完成`, 'rec');
 
   } catch (e) {
@@ -376,8 +426,8 @@ async function sendToGemini(blob) {
 }
 
 // ── Append segment ─────────────────────────────────────────────────────────
-function appendSeg(time, text) {
-  sessionSegs.push({ time, text });
+function appendSeg(time, text, translation = null) {
+  sessionSegs.push({ time, text, translation });
 
   const area = document.getElementById('tarea');
   const empty = area.querySelector('.empty');
@@ -400,6 +450,20 @@ function appendSeg(time, text) {
   p.className = 'seg-text';
   p.textContent = text;
   seg.appendChild(p);
+
+  if (translation) {
+    const tBlock = document.createElement('div');
+    tBlock.className = 'seg-translation';
+    const lbl = document.createElement('div');
+    lbl.className = 'seg-translation-label';
+    lbl.textContent = document.getElementById('translate-to').value;
+    const tTxt = document.createElement('div');
+    tTxt.textContent = translation;
+    tBlock.appendChild(lbl);
+    tBlock.appendChild(tTxt);
+    seg.appendChild(tBlock);
+  }
+
   area.appendChild(seg);
   area.scrollTop = area.scrollHeight;
 }
@@ -422,6 +486,7 @@ function downloadTranscript() {
     if (i > 0) md += '\n---\n\n';
     if (s.time) md += `**${s.time}**\n\n`;
     md += s.text + '\n';
+    if (s.translation) md += `\n> ${s.translation.replace(/\n/g, '\n> ')}\n`;
   });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([md], { type: 'text/markdown;charset=utf-8' }));
