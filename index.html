@@ -127,8 +127,16 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 </head>
 <body>
 
-<h1>即時逐字稿</h1>
-<p class="sub">音訊在瀏覽器直接呼叫 Gemini 轉錄，API Key 只存在記憶體不寫入磁碟，逐字稿下載到本機。</p>
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:.2rem;">
+  <div>
+    <h1>即時逐字稿</h1>
+    <p class="sub" style="margin-bottom:0">音訊在瀏覽器直接呼叫 Gemini 轉錄，API Key 只存在記憶體不寫入磁碟，逐字稿下載到本機。</p>
+  </div>
+  <div style="text-align:center;flex-shrink:0;">
+    <div id="qrcode" style="display:inline-block;padding:6px;background:#fff;border:1px solid var(--border);border-radius:8px;"></div>
+    <div style="font-size:.65rem;color:var(--muted);margin-top:.3rem;">掃描開啟此頁</div>
+  </div>
+</div>
 
 <!-- Settings -->
 <div class="card">
@@ -494,6 +502,19 @@ function downloadTranscript() {
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+// ── QR Code ────────────────────────────────────────────────────────────────
+(function () {
+  const s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+  s.onload = () => new QRCode(document.getElementById('qrcode'), {
+    text: location.href,
+    width: 90, height: 90,
+    colorDark: '#1e293b', colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M,
+  });
+  document.head.appendChild(s);
+})();
 
 // ── Blob → base64 ─────────────────────────────────────────────────────────
 function blobToBase64(blob) {
