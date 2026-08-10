@@ -315,9 +315,13 @@ async function startScreen() {
 // ── Stop ───────────────────────────────────────────────────────────────────
 function stopRecording() {
   isRecording = false;
+  // 立刻鎖住所有按鈕，防止重複按
+  ['btn-mic', 'btn-screen', 'btn-stop'].forEach(id =>
+    document.getElementById(id).disabled = true
+  );
   if (recorder && recorder.state === 'recording') {
     status('停止收音，轉錄中...', 'proc');
-    recorder.stop(); // onstop 會送出剩餘音訊並更新 UI
+    recorder.stop(); // onstop 送出音訊、轉錄完成後再解鎖按鈕
   } else {
     if (activeStream) activeStream.getTracks().forEach(t => t.stop());
     setBtns(false);
