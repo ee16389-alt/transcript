@@ -334,12 +334,22 @@ function validate() {
   return true;
 }
 
+// ── Model fallback list ────────────────────────────────────────────────────
+const FALLBACK_MODELS = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-2.5-flash-lite'];
+
 // ── Send chunk to Gemini ───────────────────────────────────────────────────
-async function sendToGemini(blob, retryCount = 0) {
+async function sendToGemini(blob, modelIdx = 0) {
   const apiKey   = document.getElementById('api-key').value.trim();
   const language = document.getElementById('language').value;
   const glossary = '';
-  const model    = document.getElementById('model').value.trim() || 'gemini-2.5-flash';
+  const primary  = document.getElementById('model').value.trim() || FALLBACK_MODELS[0];
+  const tryList  = [primary, ...FALLBACK_MODELS.filter(m => m !== primary)];
+  if (modelIdx >= tryList.length) {
+    appendSeg('', '⚠️ 所有備用模型均忙碌，請稍後再試');
+    status('轉錄失敗', '');
+    return;
+  }
+  const model    = tryList[modelIdx];
   const mimeType = blob.type || 'audio/webm';
 
   const translateTo = document.getElementById('translate-to').value;
@@ -396,16 +406,24 @@ async function sendToGemini(blob, retryCount = 0) {
         : retryMs
           ? Math.max(1, Math.ceil(parseFloat(retryMs[1]) / 1000))
           : null;
-      if (waitSec !== null && retryCount < 3) {
-        for (let i = waitSec; i > 0; i--) {
-          status(`API 限速，${i} 秒後自動重試...`, 'proc');
-          await new Promise(r => setTimeout(r, 1000));
-        }
-        return sendToGemini(blob, retryCount + 1);
+
+      // 短暫限速（5 秒內）→ 靜默等待後同模型重試
+      if (waitSec !== null && waitSec <= 5) {
+        status('稍後重試...', 'proc');
+        await new Promise(r => setTimeout(r, waitSec * 1000));
+        return sendToGemini(blob, modelIdx);
       }
 
-      appendSeg('', `⚠️ Gemini 錯誤：${msg}`);
-      status(`第 ${chunkIdx} 段轉錄失敗`, 'rec');
+      // 其他錯誤（高流量、長時間限速、額度用完）→ 靜默切換備用模型
+      const next = modelIdx + 1;
+      if (next < tryList.length) {
+        status(`切換備用模型中...`, 'proc');
+        return sendToGemini(blob, next);
+      }
+
+      // 所有模型都失敗才顯示錯誤
+      appendSeg('', `⚠️ 轉錄失敗，請稍後再試`);
+      status('轉錄失敗', '');
       return;
     }
 
