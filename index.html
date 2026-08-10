@@ -493,7 +493,7 @@ async function sendToGemini(blob, modelIdx = 0) {
               { text: prompt },
             ],
           }],
-          generation_config: { temperature: 0 },
+          generation_config: { temperature: 0, max_output_tokens: 8192 },
         }),
       }
     );
@@ -536,8 +536,8 @@ async function sendToGemini(blob, modelIdx = 0) {
 
     const origMatch  = raw.match(/【原文】\s*([\s\S]*?)(?=【翻譯】|$)/);
     const transMatch = raw.match(/【翻譯】\s*([\s\S]*?)$/);
-    const origText   = origMatch  ? origMatch[1].trim()  : raw.trim();
-    const transText  = transMatch ? transMatch[1].trim() : null;
+    const origText   = deloopText(origMatch  ? origMatch[1].trim()  : raw.trim());
+    const transText  = transMatch ? deloopText(transMatch[1].trim()) : null;
 
     appendSeg(now, origText, transText);
     status(`第 ${chunkIdx} 段完成`, 'rec');
@@ -545,6 +545,27 @@ async function sendToGemini(blob, modelIdx = 0) {
   } catch (e) {
     appendSeg('', `⚠️ 網路錯誤：${e.message}`);
   }
+}
+
+// ── Repetition detector (anti-hallucination) ───────────────────────────────
+function deloopText(text) {
+  if (!text || text.length < 40) return text;
+  // Collapse consecutive duplicate lines (e.g. same sentence repeated on each line)
+  const lines = text.split('\n');
+  const outLines = []; let prev = null, streak = 0;
+  for (const line of lines) {
+    if (line.trim() && line === prev) {
+      streak++;
+      if (streak === 3) outLines.push('（⚠️ 重複內容已截斷）');
+      if (streak >= 3) continue;
+    } else { streak = 0; }
+    outLines.push(line); prev = line;
+  }
+  // Collapse inline repetition: any phrase of 5-80 chars repeated 5+ times
+  return outLines.join('\n').replace(/(.{5,80}?)\1{5,}/gs, (_, unit) => {
+    const count = Math.floor(_.length / unit.length);
+    return `${unit}⋯（⚠️ 重複 ${count} 次，已截斷）`;
+  });
 }
 
 // ── Append segment ─────────────────────────────────────────────────────────
