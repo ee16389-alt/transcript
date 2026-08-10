@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>即時逐字稿</title>
+<title>AI 逐字稿</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -129,8 +129,8 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 
 <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:.2rem;">
   <div>
-    <h1>即時逐字稿</h1>
-    <p class="sub" style="margin-bottom:0">音訊在瀏覽器直接呼叫 Gemini 轉錄，API Key 只存在記憶體不寫入磁碟，逐字稿下載到本機。</p>
+    <h1>AI 逐字稿</h1>
+    <p class="sub" style="margin-bottom:0">錄音完成後按停止，音訊直接在瀏覽器呼叫 Gemini 轉錄。API Key 只存在記憶體，逐字稿下載到本機。</p>
   </div>
   <div style="text-align:center;flex-shrink:0;">
     <div id="qrcode" style="display:inline-block;padding:6px;background:#fff;border:1px solid var(--border);border-radius:8px;"></div>
@@ -196,7 +196,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 
 <!-- Transcript area -->
 <div id="tarea">
-  <div class="empty">開始收音後，逐字稿將出現在這裡</div>
+  <div class="empty">按停止收音後，逐字稿將出現在這裡</div>
 </div>
 
 <script>
@@ -492,7 +492,7 @@ function clearTranscript() {
   sessionSegs = [];
   chunkIdx    = 0;
   document.getElementById('tarea').innerHTML =
-    '<div class="empty">開始收音後，逐字稿將出現在這裡</div>';
+    '<div class="empty">按停止收音後，逐字稿將出現在這裡</div>';
   status('已清除記錄');
 }
 
