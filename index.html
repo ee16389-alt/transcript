@@ -157,17 +157,6 @@ button:disabled { opacity: .4; cursor: not-allowed; }
       </select>
     </div>
     <div>
-      <label>自動分段間隔</label>
-      <select id="interval" onchange="updateIntervalHint(this.value)">
-        <option value="30">30 秒</option>
-        <option value="60" selected>60 秒</option>
-        <option value="120">2 分鐘</option>
-      </select>
-      <div id="interval-hint" style="font-size:.72rem;color:var(--muted);margin-top:.3rem;">
-        間隔越長，每天可錄越多；音訊 token 用量視內容而定
-      </div>
-    </div>
-    <div>
       <label>Gemini 模型</label>
       <input type="text" id="model" value="gemini-2.0-flash">
     </div>
@@ -211,21 +200,15 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 </div>
 
 <script>
-// ── Interval hint ─────────────────────────────────────────────────────────
-function updateIntervalHint(val) {
-  document.getElementById('interval-hint').textContent =
-    '間隔越長，每天可錄越多；音訊 token 用量視內容而定';
-}
-
 // ── State ──────────────────────────────────────────────────────────────────
-let recorder        = null;
-let activeStream    = null;
-let isRecording     = false;
-let pendingChunks   = [];
-let chunkTimer      = null;
-let countdownTimer  = null;
-let sessionSegs     = [];
-let chunkIdx        = 0;
+let recorder      = null;
+let activeStream  = null;
+let isRecording   = false;
+let pendingChunks = [];
+let recordingSize = 0;
+let autoFlushing  = false;
+let sessionSegs   = [];
+let chunkIdx      = 0;
 
 // ── UI helpers ─────────────────────────────────────────────────────────────
 function dot(cls) {
@@ -240,58 +223,63 @@ function setBtns(recording) {
   document.getElementById('btn-stop').disabled = !recording;
 }
 
-// ── Countdown ──────────────────────────────────────────────────────────────
-function startCountdown(sec) {
-  clearInterval(countdownTimer);
-  let t = sec;
-  countdownTimer = setInterval(() => {
-    t--;
-    if (t <= 0) { clearInterval(countdownTimer); return; }
-    status(`錄音中... 距下次轉錄 ${t} 秒`, 'rec');
-  }, 1000);
-}
-
 // ── Core recording logic ───────────────────────────────────────────────────
 function beginRecording(stream) {
   isRecording   = true;
   activeStream  = stream;
   pendingChunks = [];
+  recordingSize = 0;
+  autoFlushing  = false;
   chunkIdx      = 0;
   setBtns(true);
+  startRecorderOnStream(stream);
+}
 
+function startRecorderOnStream(stream) {
   const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg']
     .find(t => MediaRecorder.isTypeSupported(t)) || '';
 
   recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
 
   recorder.ondataavailable = e => {
-    if (e.data && e.data.size > 0) pendingChunks.push(e.data);
+    if (!e.data || e.data.size === 0) return;
+    pendingChunks.push(e.data);
+    recordingSize += e.data.size;
+    const mb = (recordingSize / 1024 / 1024).toFixed(1);
+    status(`錄音中... ${mb} MB`, 'rec');
+    if (recordingSize >= 18 * 1024 * 1024 && !autoFlushing) {
+      autoFlushing = true;
+      status('音訊達 18 MB，自動送出並繼續錄音...', 'proc');
+      recorder.stop();
+    }
   };
 
   recorder.onstop = async () => {
-    if (!pendingChunks.length) return;
+    if (!pendingChunks.length) {
+      if (!isRecording) {
+        if (activeStream) activeStream.getTracks().forEach(t => t.stop());
+        setBtns(false);
+        status('收音已結束', 'done');
+      }
+      return;
+    }
     const blob = new Blob(pendingChunks, { type: recorder.mimeType || 'audio/webm' });
     pendingChunks = [];
+    recordingSize = 0;
     chunkIdx++;
     status(`轉錄第 ${chunkIdx} 段中...`, 'proc');
     await sendToGemini(blob);
-    if (isRecording) scheduleNext();
+    if (isRecording) {
+      autoFlushing = false;
+      startRecorderOnStream(stream);
+    } else {
+      if (activeStream) activeStream.getTracks().forEach(t => t.stop());
+      setBtns(false);
+      status('收音已結束', 'done');
+    }
   };
 
-  scheduleNext(true);
-}
-
-function scheduleNext(first = false) {
-  const sec = parseInt(document.getElementById('interval').value) || 60;
-  if (!first) {
-    recorder.start();
-  } else {
-    recorder.start();
-  }
-  startCountdown(sec);
-  chunkTimer = setTimeout(() => {
-    if (recorder && recorder.state === 'recording') recorder.stop();
-  }, sec * 1000);
+  recorder.start(5000); // 每 5 秒收集一次資料以監控大小
 }
 
 // ── Start mic ──────────────────────────────────────────────────────────────
@@ -327,12 +315,14 @@ async function startScreen() {
 // ── Stop ───────────────────────────────────────────────────────────────────
 function stopRecording() {
   isRecording = false;
-  clearTimeout(chunkTimer);
-  clearInterval(countdownTimer);
-  if (recorder && recorder.state === 'recording') recorder.stop();
-  if (activeStream) activeStream.getTracks().forEach(t => t.stop());
-  setBtns(false);
-  status('收音已結束', 'done');
+  if (recorder && recorder.state === 'recording') {
+    status('停止收音，轉錄中...', 'proc');
+    recorder.stop(); // onstop 會送出剩餘音訊並更新 UI
+  } else {
+    if (activeStream) activeStream.getTracks().forEach(t => t.stop());
+    setBtns(false);
+    status('收音已結束', 'done');
+  }
 }
 
 // ── Validate ───────────────────────────────────────────────────────────────
