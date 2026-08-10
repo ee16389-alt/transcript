@@ -401,9 +401,14 @@ async function sendToGemini(blob, retryCount = 0) {
       const err = await res.json().catch(() => ({}));
       const msg = err?.error?.message || res.statusText;
 
-      const retryMatch = msg.match(/retry in ([\d.]+)s/i);
-      if (retryMatch && retryCount < 3) {
-        const waitSec = Math.ceil(parseFloat(retryMatch[1]));
+      const retryS  = msg.match(/retry in ([\d.]+)s\b/i);
+      const retryMs = msg.match(/retry in ([\d.]+)ms\b/i);
+      const waitSec = retryS
+        ? Math.ceil(parseFloat(retryS[1]))
+        : retryMs
+          ? Math.max(1, Math.ceil(parseFloat(retryMs[1]) / 1000))
+          : null;
+      if (waitSec !== null && retryCount < 3) {
         for (let i = waitSec; i > 0; i--) {
           status(`API 限速，${i} 秒後自動重試...`, 'proc');
           await new Promise(r => setTimeout(r, 1000));
