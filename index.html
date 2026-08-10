@@ -164,7 +164,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
         <option value="120">2 分鐘</option>
       </select>
       <div id="interval-hint" style="font-size:.72rem;color:var(--muted);margin-top:.3rem;">
-        免費額度每天可錄約 <b>25 小時</b>（1500 次 × 60 秒）
+        間隔越長，每天可錄越多；音訊 token 用量視內容而定
       </div>
     </div>
     <div>
@@ -213,10 +213,8 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 <script>
 // ── Interval hint ─────────────────────────────────────────────────────────
 function updateIntervalHint(val) {
-  const hrs = { '30': '12.5', '60': '25', '120': '50' };
-  const label = { '30': '30 秒', '60': '60 秒', '120': '2 分鐘' };
-  document.getElementById('interval-hint').innerHTML =
-    `免費額度每天可錄約 <b>${hrs[val]} 小時</b>（1500 次 × ${label[val]}）`;
+  document.getElementById('interval-hint').textContent =
+    '間隔越長，每天可錄越多；音訊 token 用量視內容而定';
 }
 
 // ── State ──────────────────────────────────────────────────────────────────
