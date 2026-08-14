@@ -538,11 +538,15 @@ details[open] summary::before { transform: rotate(90deg); }
           <button class="bd" id="btn-stop"   onclick="stopRecording()" disabled>■ 停止收音</button>
           <button class="bs" id="btn-mute"   onclick="toggleMicMute()" style="display:none">🔇 靜音麥克風</button>
           <button class="bs" onclick="clearTranscript()">清除記錄</button>
+          <button class="bs" id="btn-backup" onclick="chooseBackupFile()">💾 選擇備份檔</button>
           <div style="display:flex;gap:.3rem;margin-left:auto">
             <button class="bg" style="padding:.38rem .7rem;font-size:.8rem" onclick="downloadTranscript()">↓ .md</button>
             <button class="bg" style="padding:.38rem .7rem;font-size:.8rem" onclick="downloadSRT()">↓ .srt</button>
             <button class="bg" style="padding:.38rem .7rem;font-size:.8rem" onclick="downloadTXT()">↓ .txt</button>
           </div>
+        </div>
+        <div id="backup-status" style="font-size:.75rem;color:var(--muted);margin-top:.45rem;line-height:1.5;">
+          尚未啟用本機備份
         </div>
       </div>
     </div>
@@ -693,6 +697,13 @@ let currentMode      = '';
 let autosaveTimer    = null;
 let recoverCandidates = [];   // unfinished sessions found on load
 
+// ── Local file backup state ───────────────────────────────────────────────
+let backupFileHandle = null;  // File System Access API handle, chosen by user
+let backupTimer      = null;
+let backupInterval   = null;
+let backupWriting    = false;
+let backupDirty      = false;
+
 // ── IndexedDB helpers ──────────────────────────────────────────────────────
 const IDB_NAME    = 'transcript-autosave';
 const IDB_VER     = 1;
@@ -796,6 +807,7 @@ async function recoverSession() {
     area.innerHTML = '<div class="empty">按停止收音後，逐字稿將出現在這裡</div>';
   }
   status('已復原上次未完成的逐字稿', 'done');
+  scheduleFileBackup();
   // discard the other candidates
   for (const s of recoverCandidates.slice(1)) {
     try { await idbDelete(s.id); } catch (_) {}
@@ -808,6 +820,127 @@ async function discardSession() {
     try { await idbDelete(s.id); } catch (_) {}
   }
   recoverCandidates = [];
+}
+
+// ── Local Markdown backup ─────────────────────────────────────────────────
+function backupFileName() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `逐字稿_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.md`;
+}
+
+function formatBackupTime(date = new Date()) {
+  return date.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function buildTranscriptMarkdown(stateLabel = '') {
+  const today = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
+  const lines = [
+    `# 逐字稿 ${today}`,
+    '',
+    `備份狀態：${stateLabel || (isRecording ? '錄音中' : '已停止')}`,
+    `最後備份：${formatBackupTime()}`,
+    `收音模式：${currentMode || '尚未開始'}`,
+    '',
+    '---',
+    '',
+  ];
+
+  if (!sessionSegs.length) {
+    lines.push('（尚無逐字稿內容）', '');
+    return lines.join('\n');
+  }
+
+  sessionSegs.forEach((s, i) => {
+    if (i > 0) lines.push('---', '');
+    if (s.isError) {
+      lines.push('> ⚠️ [此段轉錄失敗，內容遺失]', '');
+      return;
+    }
+    if (s.time) lines.push(`**${s.time}**`, '');
+    lines.push(s.text || '', '');
+    if (s.translation) {
+      lines.push(`> ${s.translation.replace(/\n/g, '\n> ')}`, '');
+    }
+  });
+  return lines.join('\n');
+}
+
+function setBackupStatus(text, isError = false) {
+  const el = document.getElementById('backup-status');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = isError ? 'var(--danger)' : 'var(--muted)';
+}
+
+async function chooseBackupFile() {
+  if (!window.showSaveFilePicker || !window.isSecureContext) {
+    setBackupStatus('此瀏覽器不支援自動寫入本機檔案；請改用 Chrome / Edge。', true);
+    showToast('此瀏覽器不支援本機備份檔');
+    return;
+  }
+  try {
+    backupFileHandle = await window.showSaveFilePicker({
+      suggestedName: backupFileName(),
+      types: [{
+        description: 'Markdown 逐字稿',
+        accept: { 'text/markdown': ['.md'], 'text/plain': ['.txt'] },
+      }],
+    });
+    setBackupStatus('已啟用本機備份，會自動覆寫你選擇的檔案');
+    await writeBackupFile('備份已啟用');
+    startBackupInterval();
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      setBackupStatus('尚未啟用本機備份');
+      return;
+    }
+    setBackupStatus(`備份檔設定失敗：${e.message}`, true);
+  }
+}
+
+function scheduleFileBackup() {
+  if (!backupFileHandle) return;
+  backupDirty = true;
+  clearTimeout(backupTimer);
+  backupTimer = setTimeout(() => writeBackupFile(), 1200);
+}
+
+async function writeBackupFile(stateLabel = '') {
+  if (!backupFileHandle) return;
+  if (backupWriting) {
+    backupDirty = true;
+    return;
+  }
+  backupWriting = true;
+  backupDirty = false;
+  try {
+    const writable = await backupFileHandle.createWritable();
+    await writable.write(buildTranscriptMarkdown(stateLabel));
+    await writable.close();
+    setBackupStatus(`已啟用本機備份，上次備份：${formatBackupTime()}`);
+  } catch (e) {
+    setBackupStatus(`備份失敗，請重新選擇檔案：${e.message}`, true);
+    backupFileHandle = null;
+    stopBackupInterval();
+  } finally {
+    backupWriting = false;
+    if (backupDirty) scheduleFileBackup();
+  }
+}
+
+function startBackupInterval() {
+  if (!backupFileHandle || backupInterval) return;
+  backupInterval = setInterval(() => {
+    if (backupFileHandle && (isRecording || pendingApiCount > 0)) writeBackupFile();
+  }, 30000);
+}
+
+function stopBackupInterval() {
+  if (backupInterval) {
+    clearInterval(backupInterval);
+    backupInterval = null;
+  }
 }
 
 // ── UI helpers ─────────────────────────────────────────────────────────────
@@ -902,6 +1035,8 @@ function beginRecording(stream) {
   recordingStartMs = Date.now();
   chunkStartMs     = Date.now();
   setBtns(true);
+  startBackupInterval();
+  scheduleFileBackup();
   startRecorderOnStream(stream);
 }
 
@@ -932,6 +1067,8 @@ function startRecorderOnStream(stream) {
         cleanupStreams();
         setBtns(false);
         status('收音已結束', 'done');
+        stopBackupInterval();
+        writeBackupFile('收音已結束');
         finishSession();
       }
       return;
@@ -965,6 +1102,8 @@ function startRecorderOnStream(stream) {
         cleanupStreams();
         setBtns(false);
         status('收音已結束', 'done');
+        stopBackupInterval();
+        writeBackupFile('收音已結束');
         finishSession();
       }
     });
@@ -1081,6 +1220,8 @@ function stopRecording() {
     cleanupStreams();
     setBtns(false);
     status('收音已結束', 'done');
+    stopBackupInterval();
+    writeBackupFile('收音已結束');
     finishSession();
   }
 }
@@ -1287,6 +1428,7 @@ function _renderSeg(time, text, translation, isError = false, startSec = null, e
   }
 
   scheduleAutosave();
+  scheduleFileBackup();
   // Feature 1: smart auto-scroll
   const atBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 80;
   if (atBottom) area.scrollTop = area.scrollHeight;
@@ -1302,6 +1444,7 @@ function clearTranscript() {
   currentSessionId = null;
   document.getElementById('tarea').innerHTML =
     '<div class="empty">按停止收音後，逐字稿將出現在這裡</div>';
+  scheduleFileBackup();
   status('已清除記錄');
 }
 
@@ -1309,19 +1452,8 @@ function clearTranscript() {
 function downloadTranscript() {
   if (!sessionSegs.length) { status('⚠️ 尚無內容可下載'); return; }
   const today = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
-  let md = `# 逐字稿 ${today}\n\n`;
-  sessionSegs.forEach((s, i) => {
-    if (i > 0) md += '\n---\n\n';
-    if (s.isError) {
-      md += `> ⚠️ [此段轉錄失敗，內容遺失]\n`;
-    } else {
-      if (s.time) md += `**${s.time}**\n\n`;
-      md += s.text + '\n';
-      if (s.translation) md += `\n> ${s.translation.replace(/\n/g, '\n> ')}\n`;
-    }
-  });
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([md], { type: 'text/markdown;charset=utf-8' }));
+  a.href = URL.createObjectURL(new Blob([buildTranscriptMarkdown('手動下載')], { type: 'text/markdown;charset=utf-8' }));
   a.download = `逐字稿_${today}.md`;
   a.click();
   URL.revokeObjectURL(a.href);
