@@ -1321,18 +1321,7 @@ function renderAllRecordingSessions() {
 }
 
 // ── Recover / discard ─────────────────────────────────────────────────────
-async function recoverSession() {
-  document.getElementById('recover-bar').classList.remove('show');
-  if (!recoverCandidates.length) return;
-  const target = recoverCandidates[0];
-  if (!backupDirHandle) {
-    await chooseBackupFolder();
-    if (!backupDirHandle) {
-      document.getElementById('recover-bar').classList.add('show');
-      return;
-    }
-  }
-
+function getRecoveredSessions(target) {
   const recoveredSessions = Array.isArray(target.recordingSessions)
     ? target.recordingSessions.map((s, i) => ({
         id: s.id || `rec_recovered_${i + 1}`,
@@ -1355,22 +1344,53 @@ async function recoverSession() {
       segments: target.segs,
     });
   }
+  return recoveredSessions;
+}
 
-  try {
-    for (let i = 0; i < recoveredSessions.length; i++) {
-      const session = recoveredSessions[i];
-      const fileName = `復原_${backupFileNameForSession(session, i + 1)}`;
-      const fileHandle = await backupDirHandle.getFileHandle(fileName, { create: true });
-      const writable = await fileHandle.createWritable();
-      await writable.write(buildRecordingSessionMarkdown(session, '復原備份', i + 1));
-      await writable.close();
+async function recoverSession() {
+  document.getElementById('recover-bar').classList.remove('show');
+  if (!recoverCandidates.length) return;
+  if (!backupDirHandle) {
+    await chooseBackupFolder();
+    if (!backupDirHandle) {
+      document.getElementById('recover-bar').classList.add('show');
+      return;
     }
-    await idbDelete(target.id);
-    recoverCandidates = recoverCandidates.slice(1);
-    status('已將上次未完成的逐字稿存成備份檔', 'done');
-    setBackupStatus(`已存成復原備份，上次備份：${formatBackupTime()}`);
-  } catch (e) {
-    setBackupStatus(`復原備份失敗，請重新選擇資料夾：${e.message}`, true);
+  }
+
+  const remaining = [];
+  let savedCount = 0;
+  let failedCount = 0;
+  for (const target of recoverCandidates) {
+    const recoveredSessions = getRecoveredSessions(target);
+    try {
+      if (!recoveredSessions.length) {
+        await idbDelete(target.id);
+        savedCount++;
+        continue;
+      }
+      for (let i = 0; i < recoveredSessions.length; i++) {
+        const session = recoveredSessions[i];
+        const fileName = `復原_${backupFileNameForSession(session, i + 1)}`;
+        const fileHandle = await backupDirHandle.getFileHandle(fileName, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(buildRecordingSessionMarkdown(session, '復原備份', i + 1));
+        await writable.close();
+      }
+      await idbDelete(target.id);
+      savedCount++;
+    } catch (e) {
+      failedCount++;
+      remaining.push(target);
+      setBackupStatus(`復原備份部分失敗，請重新選擇資料夾：${e.message}`, true);
+    }
+  }
+  recoverCandidates = remaining;
+  if (savedCount) {
+    status(`已將 ${savedCount} 筆上次未完成的逐字稿存成備份檔`, 'done');
+    if (!failedCount) setBackupStatus(`已存成復原備份，上次備份：${formatBackupTime()}`);
+  }
+  if (recoverCandidates.length) {
     document.getElementById('recover-bar').classList.add('show');
   }
 }
