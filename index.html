@@ -524,9 +524,8 @@ details[open] summary::before { transform: rotate(90deg); }
   gap: 1rem; margin-bottom: 1rem;
 }
 .control-card .work-card-head {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  align-items: start;
+  flex-direction: column;
+  align-items: flex-start;
 }
 .work-card h1, .work-card h2 {
   font-size: clamp(1.25rem, 2vw, 1.65rem);
@@ -604,7 +603,7 @@ details[open] summary::before { transform: rotate(90deg); }
   min-height: 36px;
   box-shadow: none;
   background: var(--bg);
-  justify-self: end;
+  align-self: flex-start;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
@@ -701,8 +700,6 @@ details[open] summary::before { transform: rotate(90deg); }
   .drawer-body { padding: .95rem 1rem calc(1.5rem + env(safe-area-inset-bottom)); }
   .work-card-head, .transcript-head { flex-direction: column; align-items: stretch; }
   .control-card .work-card-head {
-    display: flex;
-    flex-direction: column;
     align-items: stretch;
   }
   .work-card h1, .work-card h2 { font-size: 1.2rem; }
