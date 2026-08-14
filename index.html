@@ -226,6 +226,17 @@ details[open] summary::before { transform: rotate(90deg); }
 .guide .qa { margin-bottom: .6rem; }
 .guide .qa b { display: block; color: var(--fg); font-weight: 600; }
 
+/* ── Recovery bar ───────────────────────────────────────────────────────── */
+#recover-bar {
+  background: #FFFBEB; border-bottom: 1px solid #FDE68A;
+  padding: .6rem 2rem; font-size: .83rem; color: #92400E;
+  display: none; align-items: center; justify-content: space-between; gap: 1rem;
+  flex-wrap: wrap;
+}
+#recover-bar.show { display: flex; }
+.recover-btns { display: flex; gap: .4rem; flex-shrink: 0; }
+.recover-btns button { min-height: 30px; padding: .25rem .75rem; font-size: .8rem; }
+
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .topbar { padding: .65rem 1rem; }
@@ -249,6 +260,15 @@ details[open] summary::before { transform: rotate(90deg); }
     <div class="qr-label">掃描開啟</div>
   </div>
 </header>
+
+<!-- ── Recovery bar ─────────────────────────────────────────────────────── -->
+<div id="recover-bar">
+  <span id="recover-msg">偵測到上次未完成的錄音，是否要復原？</span>
+  <div class="recover-btns">
+    <button class="bp" onclick="recoverSession()">復原</button>
+    <button class="bs" onclick="discardSession()">捨棄</button>
+  </div>
+</div>
 
 <!-- ── Main ─────────────────────────────────────────────────────────────── -->
 <main class="main">
@@ -403,6 +423,141 @@ let autoFlushing   = false;
 let sessionSegs    = [];
 let chunkIdx       = 0;
 
+// ── IndexedDB auto-save state ──────────────────────────────────────────────
+let idb              = null;  // IndexedDB instance (null = unavailable)
+let currentSessionId = null;
+let currentMode      = '';
+let autosaveTimer    = null;
+let recoverCandidates = [];   // unfinished sessions found on load
+
+// ── IndexedDB helpers ──────────────────────────────────────────────────────
+const IDB_NAME    = 'transcript-autosave';
+const IDB_VER     = 1;
+const IDB_STORE   = 'sessions';
+const IDB_MAX     = 5;
+
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(IDB_NAME, IDB_VER);
+    req.onupgradeneeded = e => {
+      const store = e.target.result.createObjectStore(IDB_STORE, { keyPath: 'id' });
+      store.createIndex('updatedAt', 'updatedAt');
+    };
+    req.onsuccess = e => res(e.target.result);
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+function idbAll() {
+  return new Promise((res, rej) => {
+    if (!idb) return res([]);
+    const req = idb.transaction(IDB_STORE, 'readonly')
+                   .objectStore(IDB_STORE).getAll();
+    req.onsuccess = e => res(e.target.result || []);
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+function idbPut(data) {
+  return new Promise((res, rej) => {
+    if (!idb) return res();
+    const req = idb.transaction(IDB_STORE, 'readwrite')
+                   .objectStore(IDB_STORE).put(data);
+    req.onsuccess = () => res();
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+function idbDelete(id) {
+  return new Promise((res, rej) => {
+    if (!idb) return res();
+    const req = idb.transaction(IDB_STORE, 'readwrite')
+                   .objectStore(IDB_STORE).delete(id);
+    req.onsuccess = () => res();
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+async function idbPrune() {
+  try {
+    const all = await idbAll();
+    const sorted = all.sort((a, b) => b.updatedAt - a.updatedAt);
+    for (const s of sorted.slice(IDB_MAX)) await idbDelete(s.id);
+  } catch (_) {}
+}
+
+// ── Auto-save trigger (debounced 2s) ──────────────────────────────────────
+function scheduleAutosave() {
+  if (!idb || !currentSessionId) return;
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(async () => {
+    try {
+      await idbPut({
+        id:        currentSessionId,
+        segs:      sessionSegs,
+        mode:      currentMode,
+        updatedAt: Date.now(),
+        finished:  false,
+      });
+      await idbPrune();
+    } catch (_) {}
+  }, 2000);
+}
+
+// ── Mark session finished (clear from DB) ─────────────────────────────────
+async function finishSession() {
+  clearTimeout(autosaveTimer);
+  if (!idb || !currentSessionId) return;
+  try { await idbDelete(currentSessionId); } catch (_) {}
+}
+
+// ── Recover / discard ─────────────────────────────────────────────────────
+async function recoverSession() {
+  document.getElementById('recover-bar').classList.remove('show');
+  if (!recoverCandidates.length) return;
+  const target = recoverCandidates[0];
+  sessionSegs = target.segs || [];
+  chunkIdx    = sessionSegs.length;
+  currentSessionId = target.id;
+  currentMode      = target.mode || '';
+
+  const area = document.getElementById('tarea');
+  area.innerHTML = '';
+  if (sessionSegs.length) {
+    const main = document.createElement('div');
+    main.className = 'session-main seg-text';
+    main.textContent = sessionSegs.map(s => s.text).join('\n');
+    area.appendChild(main);
+    sessionSegs.filter(s => s.translation).forEach(s => {
+      const tBlock = document.createElement('div');
+      tBlock.className = 'seg-translation';
+      const lbl = document.createElement('div');
+      lbl.className = 'seg-translation-label';
+      lbl.textContent = s.translation ? '翻譯' : '';
+      const tTxt = document.createElement('div');
+      tTxt.textContent = s.translation;
+      tBlock.appendChild(lbl);
+      tBlock.appendChild(tTxt);
+      area.appendChild(tBlock);
+    });
+  } else {
+    area.innerHTML = '<div class="empty">按停止收音後，逐字稿將出現在這裡</div>';
+  }
+  status('已復原上次未完成的逐字稿', 'done');
+  // discard the other candidates
+  for (const s of recoverCandidates.slice(1)) {
+    try { await idbDelete(s.id); } catch (_) {}
+  }
+}
+
+async function discardSession() {
+  document.getElementById('recover-bar').classList.remove('show');
+  for (const s of recoverCandidates) {
+    try { await idbDelete(s.id); } catch (_) {}
+  }
+  recoverCandidates = [];
+}
+
 // ── UI helpers ─────────────────────────────────────────────────────────────
 function dot(cls) {
   document.getElementById('sdot').className = cls || '';
@@ -447,12 +602,13 @@ function toggleMicMute() {
 
 // ── Core recording logic ───────────────────────────────────────────────────
 function beginRecording(stream) {
-  isRecording   = true;
-  activeStream  = stream;
-  pendingChunks = [];
-  recordingSize = 0;
-  autoFlushing  = false;
-  chunkIdx      = 0;
+  isRecording      = true;
+  activeStream     = stream;
+  pendingChunks    = [];
+  recordingSize    = 0;
+  autoFlushing     = false;
+  chunkIdx         = 0;
+  currentSessionId = `session_${Date.now()}`;
   setBtns(true);
   startRecorderOnStream(stream);
 }
@@ -513,29 +669,11 @@ async function startMic() {
     stream.getTracks().forEach(t => { t.onended = () => { if (isRecording) stopRecording(); }; });
     micTrackRef = stream.getAudioTracks()[0];
     showMuteBtn(true);
+    currentMode = '麥克風';
     status('錄音中（麥克風）', 'rec');
     beginRecording(stream);
   } catch (e) {
     status('⚠️ 無法存取麥克風：' + e.message);
-  }
-}
-
-// ── Start screen / tab capture ─────────────────────────────────────────────
-async function startScreen() {
-  if (!validate()) return;
-  try {
-    const raw = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-    raw.getVideoTracks().forEach(t => t.stop());
-    const audioTracks = raw.getAudioTracks();
-    if (!audioTracks.length) {
-      status('⚠️ 未取得音訊。請選「分頁（Tab）」並勾選「共享分頁音訊」。');
-      return;
-    }
-    audioTracks.forEach(t => { t.onended = () => { if (isRecording) stopRecording(); }; });
-    status('錄音中（分頁/螢幕）', 'rec');
-    beginRecording(new MediaStream(audioTracks));
-  } catch (e) {
-    status(e.name === 'AbortError' ? '已取消選擇' : '⚠️ ' + e.message);
   }
 }
 
@@ -551,6 +689,7 @@ async function startScreen() {
       return;
     }
     audioTracks.forEach(t => { t.onended = () => { if (isRecording) stopRecording(); }; });
+    currentMode = '分頁音訊';
     status('錄音中（只收分頁音訊）', 'rec');
     beginRecording(new MediaStream(audioTracks));
   } catch (e) {
@@ -598,6 +737,7 @@ async function startMixed() {
     const label = screenAudio.length
       ? '錄音中（麥克風 ＋ 分頁/螢幕）'
       : '錄音中（純麥克風，未取得分頁音訊）';
+    currentMode = screenAudio.length ? '麥克風＋分頁' : '麥克風';
     status(label, 'rec');
     beginRecording(dest.stream);
   } catch (e) {
@@ -782,6 +922,7 @@ function appendSeg(time, text, translation = null) {
     area.appendChild(mainText);
   }
   mainText.textContent += (mainText.textContent ? '\n' : '') + text;
+  scheduleAutosave();
 
   // 翻譯區塊仍逐段附加在文字區塊後
   if (translation) {
@@ -802,8 +943,10 @@ function appendSeg(time, text, translation = null) {
 
 // ── Clear ──────────────────────────────────────────────────────────────────
 function clearTranscript() {
-  sessionSegs = [];
-  chunkIdx    = 0;
+  finishSession();
+  sessionSegs      = [];
+  chunkIdx         = 0;
+  currentSessionId = null;
   document.getElementById('tarea').innerHTML =
     '<div class="empty">按停止收音後，逐字稿將出現在這裡</div>';
   status('已清除記錄');
@@ -825,7 +968,30 @@ function downloadTranscript() {
   a.download = `逐字稿_${today}.md`;
   a.click();
   URL.revokeObjectURL(a.href);
+  finishSession();
 }
+
+// ── IndexedDB init on page load ────────────────────────────────────────────
+(async function initIDB() {
+  try {
+    if (!window.indexedDB) return;
+    idb = await idbOpen();
+    const all        = await idbAll();
+    recoverCandidates = all
+      .filter(s => !s.finished)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+    if (recoverCandidates.length) {
+      const s   = recoverCandidates[0];
+      const dt  = new Date(s.updatedAt).toLocaleString('zh-TW');
+      const cnt = sessionSegs.length || (s.segs || []).length;
+      document.getElementById('recover-msg').textContent =
+        `偵測到上次未完成的「${s.mode || ''}」錄音（${dt}，${cnt} 段），是否復原？`;
+      document.getElementById('recover-bar').classList.add('show');
+    }
+  } catch (_) {
+    idb = null; // IndexedDB 不可用，靜默略過
+  }
+})();
 
 // ── QR Code ────────────────────────────────────────────────────────────────
 (function () {
