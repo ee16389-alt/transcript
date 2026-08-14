@@ -535,8 +535,8 @@ async function startScreen() {
 async function startMixed() {
   if (!validate()) return;
   try {
-    // 1. 取得麥克風（啟用降噪與回音消除）
-    const micStream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
+    // 1. 取得麥克風（混合模式關閉回音消除，避免分頁音訊被誤判為回音而消掉麥克風訊號）
+    const micStream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: false } });
 
     // 2. 嘗試取得分頁/螢幕音訊；取消或失敗就退回純麥克風
     let screenAudio = [];
@@ -549,8 +549,9 @@ async function startMixed() {
       // AbortError = 使用者取消，其他錯誤也靜默退回麥克風模式
     }
 
-    // 3. 用 AudioContext 混合（有分頁音訊才加入）
+    // 3. 用 AudioContext 混合（resume 確保 context 不在暫停狀態）
     const ctx  = new AudioContext();
+    await ctx.resume();
     const dest = ctx.createMediaStreamDestination();
     ctx.createMediaStreamSource(micStream).connect(dest);
     if (screenAudio.length) {
