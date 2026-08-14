@@ -447,6 +447,26 @@ details[open] summary::before { transform: rotate(90deg); }
 .drawer-close { width: 34px; min-width: 34px; height: 34px; padding: 0; }
 .drawer-body { padding: 1.1rem 1.25rem 1.5rem; }
 .settings-grid { display: grid; gap: 1rem; }
+.remember-key {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  margin-top: .65rem;
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+.remember-key input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.field-hint {
+  margin-top: .25rem;
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.45;
+}
 .quota-banner {
   display: block;
   margin-top: 1rem !important;
@@ -760,6 +780,11 @@ details[open] summary::before { transform: rotate(90deg); }
           </div>
         </div>
         <input type="password" id="api-key" placeholder="貼上你的 Gemini API Key">
+        <label class="remember-key" for="remember-api-key">
+          <input type="checkbox" id="remember-api-key">
+          <span>記住 API Key</span>
+        </label>
+        <div class="field-hint">僅儲存在此瀏覽器；未勾選時，關閉頁面後即不保留。</div>
       </div>
       <div>
         <label for="language">收音語言</label>
@@ -1428,12 +1453,27 @@ async function copyTranscript() {
 
 function initStoredSettings() {
   const apiInput = document.getElementById('api-key');
+  const rememberInput = document.getElementById('remember-api-key');
   const savedKey = localStorage.getItem(API_KEY_STORAGE);
-  if (savedKey && apiInput && !apiInput.value) apiInput.value = savedKey;
+  if (savedKey && apiInput && !apiInput.value) {
+    apiInput.value = savedKey;
+    if (rememberInput) rememberInput.checked = true;
+  } else if (rememberInput) {
+    rememberInput.checked = false;
+  }
   apiInput?.addEventListener('input', () => {
     const value = apiInput.value.trim();
+    if (!rememberInput?.checked) return;
     if (value) localStorage.setItem(API_KEY_STORAGE, value);
     else localStorage.removeItem(API_KEY_STORAGE);
+  });
+  rememberInput?.addEventListener('change', () => {
+    if (rememberInput.checked) {
+      const value = apiInput?.value.trim() || '';
+      if (value) localStorage.setItem(API_KEY_STORAGE, value);
+    } else {
+      localStorage.removeItem(API_KEY_STORAGE);
+    }
   });
   updateModeCards();
   updateExportButtons();
