@@ -552,26 +552,29 @@ details[open] summary::before { transform: rotate(90deg); }
 .mode-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: .75rem;
+  gap: 1rem;
 }
 .mode-card {
-  display: block;
-  min-height: 86px;
-  padding: .8rem .85rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 136px;
+  padding: 1rem 1.05rem;
   text-align: left;
   white-space: normal;
   background: var(--surface);
   color: var(--fg);
   border: 1px solid var(--border-d);
   box-shadow: var(--sh-sm);
+  width: 100%;
 }
-.mode-card b { display: block; font-size: .9rem; line-height: 1.35; }
+.mode-card b { display: block; font-size: 1.05rem; line-height: 1.35; }
 .mode-card span {
   display: block;
-  margin-top: .2rem;
+  margin-top: .45rem;
   color: var(--muted);
-  font-size: .76rem;
-  line-height: 1.4;
+  font-size: .86rem;
+  line-height: 1.5;
 }
 .mode-card.active {
   background: var(--accent);
@@ -588,7 +591,19 @@ details[open] summary::before { transform: rotate(90deg); }
   justify-content: space-between;
   gap: .75rem;
 }
-.record-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.record-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .75rem;
+  width: 100%;
+}
+.record-actions button {
+  width: 100%;
+  min-height: 52px;
+  padding: .72rem .9rem;
+  font-size: .95rem;
+}
+#btn-backup { grid-column: 1 / -1; }
 .bw {
   background: #FFFBEB;
   color: #92400E;
@@ -712,10 +727,13 @@ details[open] summary::before { transform: rotate(90deg); }
     padding: .5rem .7rem;
     overflow: hidden;
   }
-  .mode-grid { grid-template-columns: 1fr; }
-  .mode-card { min-height: 58px; padding: .72rem .8rem; }
+  .mode-grid { grid-template-columns: 1fr; gap: .65rem; }
+  .mode-card { min-height: 72px; padding: .8rem .9rem; }
+  .mode-card b { font-size: .95rem; }
+  .mode-card span { font-size: .8rem; margin-top: .25rem; }
   .toolbar-row, .record-actions { align-items: stretch; width: 100%; }
-  .record-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .record-actions { grid-template-columns: 1fr 1fr; gap: .6rem; }
+  .record-actions button { min-height: 48px; padding: .65rem .7rem; font-size: .9rem; }
   .record-actions button, .export-actions button, button, input[type=text], input[type=password], select {
     min-height: 44px;
   }
