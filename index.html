@@ -291,10 +291,9 @@ details[open] summary::before { transform: rotate(90deg); }
   <!-- Controls -->
   <div class="card">
     <div class="btn-row">
-      <button class="bp" id="btn-mic"    onclick="startMic()">🎙 麥克風收音</button>
-      <button class="bp" id="btn-screen" onclick="startScreen()">🖥 分頁 / 螢幕收音</button>
-      <button class="bp" id="btn-mixed"  onclick="startMixed()">🎙＋🖥 麥克風＋分頁混合</button>
-      <button class="bd" id="btn-stop"   onclick="stopRecording()" disabled>■ 停止收音</button>
+      <button class="bp" id="btn-mic"   onclick="startMic()">🎙 只收麥克風</button>
+      <button class="bp" id="btn-mixed" onclick="startMixed()">🎙＋🖥 麥克風＋分頁</button>
+      <button class="bd" id="btn-stop"  onclick="stopRecording()" disabled>■ 停止收音</button>
       <button class="bs" onclick="clearTranscript()">清除記錄</button>
       <button class="bg" onclick="downloadTranscript()">↓ 下載 Markdown</button>
     </div>
@@ -336,11 +335,10 @@ details[open] summary::before { transform: rotate(90deg); }
       <li>點「↓ 下載 Markdown」儲存到本機</li>
     </ol>
 
-    <h3>三種收音模式</h3>
+    <h3>兩種收音模式</h3>
     <ul>
-      <li><b>🎙 麥克風收音</b>：只收麥克風，適合自己說話或純語音記錄</li>
-      <li><b>🖥 分頁 / 螢幕收音</b>：只收瀏覽器分頁/系統音訊，適合 YouTube、線上課程。電腦靜音也不影響轉錄。</li>
-      <li><b>🎙＋🖥 麥克風＋分頁混合</b>：同時收麥克風與分頁音訊，適合 Teams/Zoom 開會時想同時收自己說話與對方聲音，或一邊聽線上課程一邊說筆記。點按鈕後會先要求麥克風權限，再請你選分頁並勾選「共享分頁音訊」。</li>
+      <li><b>🎙 只收麥克風</b>：只錄自己說話，不收任何瀏覽器聲音。適合錄語音筆記、獨自說話的場合。</li>
+      <li><b>🎙＋🖥 麥克風＋分頁</b>：同時收麥克風與瀏覽器分頁音訊。適合 Teams/Zoom 開會（自己說話＋對方聲音一起收）、看 YouTube 課程邊說筆記等。<br>點按鈕後：① 先允許麥克風 → ② 再選要收音的分頁並勾選「<b>共享分頁音訊</b>」。若步驟②取消，會自動退回純麥克風模式繼續錄音。</li>
     </ul>
 
     <h3>注意事項</h3>
@@ -384,7 +382,7 @@ function status(msg, cls) {
   dot(cls || '');
 }
 function setBtns(recording) {
-  ['btn-mic', 'btn-screen', 'btn-mixed'].forEach(id => document.getElementById(id).disabled = recording);
+  ['btn-mic', 'btn-mixed'].forEach(id => document.getElementById(id).disabled = recording);
   document.getElementById('btn-stop').disabled = !recording;
   ['api-key', 'language', 'model', 'translate-to'].forEach(id =>
     document.getElementById(id).disabled = recording
@@ -497,19 +495,18 @@ async function startMixed() {
     // 1. 取得麥克風
     const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-    // 2. 取得分頁/螢幕音訊（讓使用者選）
-    let screenStream;
+    // 2. 嘗試取得分頁/螢幕音訊；取消或失敗就退回純麥克風
+    let screenAudio = [];
+    let screenStream = null;
     try {
       screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      screenStream.getVideoTracks().forEach(t => t.stop());
+      screenAudio = screenStream.getAudioTracks();
     } catch (e) {
-      micStream.getTracks().forEach(t => t.stop());
-      status(e.name === 'AbortError' ? '已取消選擇' : '⚠️ ' + e.message);
-      return;
+      // AbortError = 使用者取消，其他錯誤也靜默退回麥克風模式
     }
-    screenStream.getVideoTracks().forEach(t => t.stop());
-    const screenAudio = screenStream.getAudioTracks();
 
-    // 3. 用 AudioContext 混合兩路音訊
+    // 3. 用 AudioContext 混合（有分頁音訊才加入）
     const ctx  = new AudioContext();
     const dest = ctx.createMediaStreamDestination();
     ctx.createMediaStreamSource(micStream).connect(dest);
@@ -522,12 +519,12 @@ async function startMixed() {
       t.onended = () => { if (isRecording) stopRecording(); };
     });
 
-    extraStreams    = [micStream, screenStream];
+    extraStreams    = screenStream ? [micStream, screenStream] : [micStream];
     activeAudioCtx = ctx;
 
     const label = screenAudio.length
       ? '錄音中（麥克風 ＋ 分頁/螢幕）'
-      : '錄音中（麥克風，未取得分頁音訊，請勾選「共享分頁音訊」）';
+      : '錄音中（純麥克風，未取得分頁音訊）';
     status(label, 'rec');
     beginRecording(dest.stream);
   } catch (e) {
@@ -539,7 +536,7 @@ async function startMixed() {
 function stopRecording() {
   isRecording = false;
   // 立刻鎖住所有按鈕與設定欄位，防止重複按
-  ['btn-mic', 'btn-screen', 'btn-mixed', 'btn-stop'].forEach(id =>
+  ['btn-mic', 'btn-mixed', 'btn-stop'].forEach(id =>
     document.getElementById(id).disabled = true
   );
   ['api-key', 'language', 'model', 'translate-to'].forEach(id =>
