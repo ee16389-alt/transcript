@@ -439,7 +439,7 @@ details[open] summary::before { transform: rotate(90deg); }
   display: grid;
   grid-template-columns: minmax(320px, .88fr) minmax(0, 1.12fr);
   gap: 1rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .settings-backdrop {
@@ -518,7 +518,10 @@ details[open] summary::before { transform: rotate(90deg); }
 }
 .settings-drawer .info-popover summary::before { content: none !important; }
 
-.work-card { margin-bottom: 1rem; }
+.work-card {
+  height: 100%;
+  margin-bottom: 0;
+}
 .work-card-head {
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: 1rem; margin-bottom: 1rem;
@@ -652,6 +655,8 @@ details[open] summary::before { transform: rotate(90deg); }
 }
 
 .transcript-card {
+  display: flex;
+  flex-direction: column;
   padding: 0;
   overflow: hidden;
 }
@@ -673,6 +678,7 @@ details[open] summary::before { transform: rotate(90deg); }
   font-size: .78rem;
 }
 .transcript-card #tarea {
+  flex: 1;
   border: 0;
   border-radius: 0;
   box-shadow: none;
@@ -703,6 +709,7 @@ details[open] summary::before { transform: rotate(90deg); }
     padding: .85rem .85rem calc(5rem + env(safe-area-inset-bottom));
   }
   .workspace-grid { grid-template-columns: 1fr; gap: .85rem; }
+  .work-card { height: auto; }
   .card { border-radius: 12px; padding: 1rem; }
   .settings-drawer {
     top: auto; right: 0; bottom: 0; left: 0;
