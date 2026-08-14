@@ -287,6 +287,21 @@ details[open] summary::before { transform: rotate(90deg); }
           <option value="菲律賓文">菲律賓文</option>
         </select>
       </div>
+      <div class="full">
+        <label>自動轉檔大小（超過後送出轉逐字稿，再繼續錄音）</label>
+        <select id="chunk-mb">
+          <option value="3">3 MB — 約 7–10 分鐘</option>
+          <option value="5">5 MB — 約 12–15 分鐘</option>
+          <option value="10">10 MB — 約 25–30 分鐘</option>
+          <option value="15">15 MB — 約 37–45 分鐘</option>
+          <option value="18" selected>18 MB — 約 45–55 分鐘（預設，接近 API 上限）</option>
+        </select>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:.35rem;line-height:1.6;">
+          換算基準：語音 WebM/Opus 約 40–64 kbps，即每分鐘約 0.3–0.5 MB。
+          Gemini API 單次音訊上限約 20 MB，建議不超過 18 MB。
+          錄音未超過此大小則按停止時才呼叫一次 API。
+        </div>
+      </div>
     </div>
   </div>
 
@@ -399,7 +414,7 @@ function status(msg, cls) {
 function setBtns(recording) {
   ['btn-mic', 'btn-screen', 'btn-mixed'].forEach(id => document.getElementById(id).disabled = recording);
   document.getElementById('btn-stop').disabled = !recording;
-  ['api-key', 'language', 'translate-to'].forEach(id =>
+  ['api-key', 'language', 'translate-to', 'chunk-mb'].forEach(id =>
     document.getElementById(id).disabled = recording
   );
 }
@@ -454,7 +469,8 @@ function startRecorderOnStream(stream) {
     recordingSize += e.data.size;
     const mb = (recordingSize / 1024 / 1024).toFixed(1);
     status(`錄音中... ${mb} MB`, 'rec');
-    if (recordingSize >= 18 * 1024 * 1024 && !autoFlushing) {
+    const chunkMB = parseInt(document.getElementById('chunk-mb').value, 10) || 18;
+    if (recordingSize >= chunkMB * 1024 * 1024 && !autoFlushing) {
       autoFlushing = true;
       status('音訊達 18 MB，自動送出並繼續錄音...', 'proc');
       recorder.stop();
