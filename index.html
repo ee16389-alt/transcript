@@ -2017,14 +2017,43 @@ function validate() {
 // ── Model fallback list ────────────────────────────────────────────────────
 const PRIMARY_MODEL   = 'gemini-3.1-flash-lite';
 const FALLBACK_MODELS = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-2.5-flash-lite'];
+const MODEL_COOLDOWN_MS = 3 * 60 * 1000;
+let lastSuccessfulModel = PRIMARY_MODEL;
+const failedModelCooldowns = {};
+
+function allGeminiModels() {
+  return [...new Set([PRIMARY_MODEL, ...FALLBACK_MODELS])];
+}
+
+function isModelCoolingDown(model, now = Date.now()) {
+  return (failedModelCooldowns[model] || 0) > now;
+}
+
+function markModelFailure(model) {
+  failedModelCooldowns[model] = Date.now() + MODEL_COOLDOWN_MS;
+}
+
+function markModelSuccess(model) {
+  lastSuccessfulModel = model;
+  delete failedModelCooldowns[model];
+}
+
+function buildModelTryList() {
+  const models = allGeminiModels();
+  const preferred = models.includes(lastSuccessfulModel) ? lastSuccessfulModel : PRIMARY_MODEL;
+  const ordered = [preferred, ...models.filter(m => m !== preferred)];
+  const now = Date.now();
+  const available = ordered.filter(m => !isModelCoolingDown(m, now));
+  const cooling = ordered.filter(m => isModelCoolingDown(m, now));
+  return available.length ? [...available, ...cooling] : ordered;
+}
 
 // ── Send chunk to Gemini ───────────────────────────────────────────────────
-async function sendToGemini(blob, modelIdx = 0, segNum = null, startSec = null, endSec = null) {
+async function sendToGemini(blob, modelIdx = 0, segNum = null, startSec = null, endSec = null, modelTryList = null) {
   const apiKey   = document.getElementById('api-key').value.trim();
   const language = document.getElementById('language').value;
   const glossary = '';
-  const primary  = PRIMARY_MODEL;
-  const tryList  = [primary, ...FALLBACK_MODELS.filter(m => m !== primary)];
+  const tryList  = modelTryList || buildModelTryList();
   if (modelIdx >= tryList.length) {
     appendSeg('', '⚠️ 所有備用模型均忙碌，請稍後再試', null, segNum, true, startSec, endSec);
     showToast('轉錄失敗：所有備用模型均忙碌');
@@ -2092,14 +2121,15 @@ async function sendToGemini(blob, modelIdx = 0, segNum = null, startSec = null, 
       if (waitSec !== null && waitSec <= 5) {
         status('稍後重試...', 'proc');
         await new Promise(r => setTimeout(r, waitSec * 1000));
-        return sendToGemini(blob, modelIdx, segNum, startSec, endSec);
+        return sendToGemini(blob, modelIdx, segNum, startSec, endSec, tryList);
       }
 
       // 其他錯誤（高流量、長時間限速、額度用完）→ 靜默切換備用模型
+      markModelFailure(model);
       const next = modelIdx + 1;
       if (next < tryList.length) {
         status(`切換備用模型中...`, 'proc');
-        return sendToGemini(blob, next, segNum, startSec, endSec);
+        return sendToGemini(blob, next, segNum, startSec, endSec, tryList);
       }
 
       // 所有模型都失敗才顯示錯誤
@@ -2117,6 +2147,7 @@ async function sendToGemini(blob, modelIdx = 0, segNum = null, startSec = null, 
     const origText   = deloopText(origMatch  ? origMatch[1].trim()  : raw.trim());
     const transText  = transMatch ? deloopText(transMatch[1].trim()) : null;
 
+    markModelSuccess(model);
     appendSeg(now, origText, transText, segNum, false, startSec, endSec);
     status(`第 ${segNum ?? chunkIdx} 段完成`, 'rec');
 
