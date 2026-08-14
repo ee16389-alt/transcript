@@ -73,22 +73,31 @@ body {
   border: 1px solid var(--accent-bdr);
   border-radius: 20px; padding: .15rem .65rem; margin-left: .25rem;
 }
-.topbar-qr { text-align: center; }
-.qr-box {
-  display: inline-block; padding: 5px;
-  background: #fff; border: 1px solid var(--border);
-  border-radius: 8px; box-shadow: var(--sh-sm);
+
+/* Header QR Code 容器卡片化 */
+.topbar-qr-card {
+  display: flex; align-items: center; gap: .5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-base);
+  padding: .35rem .65rem;
+  box-shadow: var(--sh-sm);
 }
-.qr-label { font-size: .625rem; color: var(--muted); margin-top: .15rem; font-weight: 500; }
+.qr-box { display: flex; align-items: center; justify-content: center; }
+.qr-label { font-size: .65rem; color: var(--muted); font-weight: 600; line-height: 1; }
 
 /* Main layout */
 .main { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
 
-/* Section label */
+/* Section label & sublabel */
 .slabel {
   font-size: .7rem; font-weight: 700; color: var(--muted);
   text-transform: uppercase; letter-spacing: .08em;
   margin-bottom: .75rem; display: flex; align-items: center; gap: .4rem;
+}
+.sub-label {
+  font-size: .75rem; font-weight: 600; color: var(--muted);
+  margin-bottom: .5rem; display: block;
 }
 
 /* Card */
@@ -124,7 +133,35 @@ input:focus, select:focus {
   box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
-/* Buttons */
+/* 轉檔大小 Info Tooltip */
+.label-with-info { display: flex; align-items: center; gap: .4rem; margin-bottom: .4rem; }
+.label-with-info label { margin-bottom: 0; }
+.info-popover { position: relative; display: inline-block; cursor: pointer; }
+.info-icon {
+  font-size: .7rem; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 50%; width: 16px; height: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 600; line-height: 1;
+}
+.info-popover details {
+  position: relative; background: transparent; border: none; box-shadow: none; margin: 0;
+}
+.info-popover summary {
+  padding: 0; list-style: none; display: flex; align-items: center;
+}
+.info-popover summary::-webkit-details-marker { display: none; }
+.info-popover summary::before { content: none !important; }
+.info-card {
+  position: absolute; left: 0; top: 120%; z-index: 30;
+  width: 280px; padding: .75rem; font-size: .75rem; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-base); box-shadow: var(--sh-hover);
+  line-height: 1.5;
+}
+
+/* 操作按鈕列分組 */
+.btn-group-section { display: flex; flex-direction: column; gap: 1rem; }
 .btn-row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
 
 button {
@@ -170,13 +207,14 @@ button:active:not(:disabled) { transform: translateY(0); }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
 @keyframes sdot-bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
 
-/* Transcript area */
+/* 逐字稿顯示區 */
 #tarea {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-card);
-  padding: 1.5rem;
-  min-height: 320px; max-height: 60vh;
+  padding: 1.25rem 1.5rem;
+  min-height: auto;
+  max-height: 60vh;
   overflow-y: auto; font-size: .925rem; line-height: 1.8;
   box-shadow: var(--sh-card);
 }
@@ -184,7 +222,12 @@ button:active:not(:disabled) { transform: translateY(0); }
 #tarea::-webkit-scrollbar-track { background: transparent; }
 #tarea::-webkit-scrollbar-thumb { background: var(--border-d); border-radius: 4px; }
 
-.empty { color: var(--muted); font-size: .875rem; text-align: center; padding: 4rem 1rem; }
+.empty {
+  color: var(--muted); font-size: .875rem; text-align: center;
+  padding: 1.5rem 1rem; border: 1px dashed var(--border); border-radius: var(--r-base);
+  background: var(--bg);
+}
+
 .seg-time { font-size: .7rem; font-weight: 700; color: var(--muted); margin-bottom: .25rem; letter-spacing: .03em; }
 .seg-text { white-space: pre-wrap; word-break: break-word; color: var(--fg); }
 .seg-translation {
@@ -199,7 +242,7 @@ button:active:not(:disabled) { transform: translateY(0); }
   font-size: .65rem; font-weight: 700; color: var(--accent);
   text-transform: uppercase; letter-spacing: .06em; margin-bottom: .2rem;
 }
-.divider { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+.divider { border: none; border-top: 1px solid var(--border); margin: .75rem 0; }
 
 /* Error segment */
 .seg-error {
@@ -238,41 +281,12 @@ button:active:not(:disabled) { transform: translateY(0); }
 }
 #toast-info.show { opacity: 1; transform: translateY(0); }
 
-/* Note box */
-.note {
-  font-size: .8rem; color: var(--muted); line-height: 1.6;
+/* 精簡提示框 */
+.note-simple {
+  font-size: .78rem; color: var(--muted); line-height: 1.5;
   background: var(--bg); border: 1px solid var(--border);
-  border-radius: var(--r-base); padding: .75rem 1rem; margin-top: 1rem;
+  border-radius: var(--r-base); padding: .6rem .85rem; margin-top: .85rem;
 }
-
-/* Collapsible guide */
-details {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--r-card); box-shadow: var(--sh-card); margin-top: 1.25rem;
-  overflow: hidden;
-}
-summary {
-  padding: 1.1rem 1.6rem; font-size: .9rem; font-weight: 600;
-  cursor: pointer; list-style: none;
-  display: flex; align-items: center; gap: .6rem; color: var(--fg);
-  user-select: none; transition: background 150ms ease;
-}
-summary:hover { background: var(--bg); }
-summary::-webkit-details-marker { display: none; }
-summary::before {
-  content: '▶'; font-size: .55rem; color: var(--muted);
-  transition: transform 220ms ease;
-}
-details[open] summary::before { transform: rotate(90deg); }
-.guide { padding: 0 1.6rem 1.6rem; font-size: .875rem; line-height: 1.8; border-top: 1px solid var(--border); }
-.guide h3 {
-  font-size: .7rem; font-weight: 700; color: var(--muted);
-  text-transform: uppercase; letter-spacing: .09em; margin: 1.25rem 0 .5rem;
-}
-.guide ul, .guide ol { padding-left: 1.25rem; }
-.guide li { margin-bottom: .35rem; }
-.guide .qa { margin-bottom: .75rem; }
-.guide .qa b { display: block; color: var(--fg); font-weight: 600; }
 
 /* Recovery bar */
 #recover-bar {
@@ -293,14 +307,95 @@ details[open] summary::before { transform: rotate(90deg); }
   margin-top: .5rem; line-height: 1.6;
 }
 
+/* 使用說明折疊 */
+details {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-card); box-shadow: var(--sh-card); margin-top: 1.25rem;
+  overflow: hidden;
+}
+summary {
+  padding: 1rem 1.4rem; font-size: .875rem; font-weight: 600;
+  cursor: pointer; list-style: none;
+  display: flex; align-items: center; gap: .6rem; color: var(--fg);
+  user-select: none; transition: background 150ms ease;
+}
+summary:hover { background: var(--bg); }
+summary::-webkit-details-marker { display: none; }
+summary::before {
+  content: '▶'; font-size: .55rem; color: var(--muted);
+  transition: transform 220ms ease;
+}
+details[open] summary::before { transform: rotate(90deg); }
+.guide { padding: 0 1.4rem 1.4rem; font-size: .875rem; line-height: 1.8; border-top: 1px solid var(--border); }
+.guide h3 {
+  font-size: .7rem; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .09em; margin: 1.25rem 0 .5rem;
+}
+.guide ul, .guide ol { padding-left: 1.25rem; }
+.guide li { margin-bottom: .35rem; }
+.guide .qa { margin-bottom: .75rem; }
+.guide .qa b { display: block; color: var(--fg); font-weight: 600; }
+
+/* 使用說明內部的次級折疊 */
+.sub-details {
+  border: 1px solid var(--border); border-radius: var(--r-base);
+  margin-top: .75rem; box-shadow: none;
+}
+.sub-details summary { padding: .65rem .9rem; font-size: .825rem; font-weight: 600; }
+.sub-details .sub-content { padding: .75rem .9rem; border-top: 1px solid var(--border); font-size: .825rem; }
+
 /* Responsive */
 @media (max-width: 600px) {
   .topbar { padding: .65rem 1rem; }
   .main   { padding: 1.25rem 1rem 3rem; }
   .grid2  { grid-template-columns: 1fr; }
   .topbar-tag { display: none; }
-  .btn-row { width: 100%; }
-  .btn-row button { flex: 1 1 calc(50% - .25rem); }
+  .btn-row button { flex: 1 1 100%; }
+}
+
+/* 使用說明內的極簡表格樣式 */
+.guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: .75rem 0;
+  font-size: .825rem;
+}
+.guide-table th, .guide-table td {
+  padding: .55rem .75rem;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+.guide-table th {
+  background: var(--bg);
+  color: var(--fg);
+  font-weight: 600;
+  font-size: .75rem;
+}
+.guide-table td {
+  color: var(--fg);
+}
+
+/* 信任賣點 Badge 區塊 */
+.trust-badges {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: .65rem;
+  margin: .85rem 0 1.25rem;
+}
+.trust-card {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-bdr);
+  border-radius: var(--r-base);
+  padding: .65rem .85rem;
+  font-size: .78rem;
+  color: var(--accent-h);
+  line-height: 1.45;
+}
+.trust-card b {
+  display: block;
+  color: var(--accent);
+  font-size: .825rem;
+  margin-bottom: .2rem;
 }
 
 /* Dark mode */
@@ -321,7 +416,9 @@ details[open] summary::before { transform: rotate(90deg); }
   --sh-hover:     0 8px 20px rgba(0,0,0,.4);
 }
 [data-theme="dark"] .topbar { background: rgba(30, 41, 59, 0.85); }
-[data-theme="dark"] .qr-box { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .topbar-qr-card { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .info-card { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .empty { background: var(--bg); border-color: var(--border); }
 [data-theme="dark"] #recover-bar { background: #1C1A0A; border-color: #92400E; color: #FCD34D; }
 [data-theme="dark"] .recover-btns .bp { background: var(--accent); }
 [data-theme="dark"] .recover-btns .bs { background: var(--surface); color: var(--fg); }
@@ -342,7 +439,7 @@ details[open] summary::before { transform: rotate(90deg); }
   <span class="topbar-tag">免費 · 隱私優先</span>
   <div style="margin-left:auto;display:flex;align-items:center;gap:.75rem">
     <button id="btn-theme" onclick="toggleTheme()" class="bs" style="padding:.28rem .6rem;min-height:30px;font-size:.85rem;border-radius:6px" title="切換深色模式">🌙</button>
-    <div class="topbar-qr" style="margin-left:0">
+    <div class="topbar-qr-card">
       <div class="qr-box"><div id="qrcode"></div></div>
       <div class="qr-label">掃描開啟</div>
     </div>
@@ -396,7 +493,18 @@ details[open] summary::before { transform: rotate(90deg); }
         </select>
       </div>
       <div class="full">
-        <label for="chunk-mb">自動轉檔大小（超過後送出轉逐字稿，再繼續錄音）</label>
+        <div class="label-with-info">
+          <label for="chunk-mb">自動轉檔大小（超過後送出轉逐字稿，再繼續錄音）</label>
+          <div class="info-popover">
+            <details>
+              <summary><span class="info-icon" title="點擊查看換算說明">ⓘ</span></summary>
+              <div class="info-card">
+                <b>換算基準說明：</b><br>
+                語音 WebM/Opus 約 40–64 kbps，即每分鐘約 0.3–0.5 MB。達到設定容量上限時系統自動送出一段轉錄並繼續錄音。Gemini API 單次音訊上限約 20 MB，建議不超過 18 MB。
+              </div>
+            </details>
+          </div>
+        </div>
         <select id="chunk-mb" onchange="updateQuotaHint()">
           <option value="3">3 MB — 約 7–10 分鐘</option>
           <option value="5">5 MB — 約 12–15 分鐘</option>
@@ -404,11 +512,6 @@ details[open] summary::before { transform: rotate(90deg); }
           <option value="15">15 MB — 約 37–45 分鐘</option>
           <option value="18" selected>18 MB — 約 45–55 分鐘（預設，接近 API 上限）</option>
         </select>
-        <div style="font-size:.75rem;color:var(--muted);margin-top:.4rem;line-height:1.5;">
-          換算基準：語音 WebM/Opus 約 40–64 kbps，即每分鐘約 0.3–0.5 MB。
-          Gemini API 單次音訊上限約 20 MB，建議不超過 18 MB。
-          錄音未超過此大小則按停止時才呼叫一次 API。
-        </div>
         <div id="api-quota-hint"></div>
       </div>
     </div>
@@ -417,24 +520,35 @@ details[open] summary::before { transform: rotate(90deg); }
   <!-- 控制台卡片 -->
   <div class="card">
     <div class="slabel">🎙️ 控制台</div>
-    <div class="btn-row">
-      <button class="bp" id="btn-mic"    onclick="startMic()">🎙 只收麥克風</button>
-      <button class="bp" id="btn-screen" onclick="startScreen()">🖥 只收分頁音訊</button>
-      <button class="bp" id="btn-mixed"  onclick="startMixed()">🎙＋🖥 麥克風＋分頁</button>
-      <button class="bd" id="btn-stop"   onclick="stopRecording()" disabled>■ 停止收音</button>
-      <button class="bs" id="btn-mute"   onclick="toggleMicMute()" style="display:none">🔇 靜音麥克風</button>
-      <button class="bs" onclick="clearTranscript()">清除記錄</button>
-      <div style="display:flex;gap:.3rem;margin-left:auto">
-        <button class="bg" style="padding:.38rem .7rem;font-size:.8rem" onclick="downloadTranscript()">↓ .md</button>
-        <button class="bg" style="padding:.38rem .7rem;font-size:.8rem" onclick="downloadSRT()">↓ .srt</button>
-        <button class="bg" style="padding:.38rem .7rem;font-size:.8rem" onclick="downloadTXT()">↓ .txt</button>
+    <div class="btn-group-section">
+      <div>
+        <span class="sub-label">選擇收音模式</span>
+        <div class="btn-row">
+          <button class="bp" id="btn-mic"    onclick="startMic()">🎙 只收麥克風</button>
+          <button class="bp" id="btn-screen" onclick="startScreen()">🖥 只收分頁音訊</button>
+          <button class="bp" id="btn-mixed"  onclick="startMixed()">🎙＋🖥 麥克風＋分頁</button>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <div>
+        <span class="sub-label">動作與匯出</span>
+        <div class="btn-row">
+          <button class="bd" id="btn-stop"   onclick="stopRecording()" disabled>■ 停止收音</button>
+          <button class="bs" id="btn-mute"   onclick="toggleMicMute()" style="display:none">🔇 靜音麥克風</button>
+          <button class="bs" onclick="clearTranscript()">清除記錄</button>
+          <div style="display:flex;gap:.3rem;margin-left:auto">
+            <button class="bg" style="padding:.38rem .7rem;font-size:.8rem" onclick="downloadTranscript()">↓ .md</button>
+            <button class="bg" style="padding:.38rem .7rem;font-size:.8rem" onclick="downloadSRT()">↓ .srt</button>
+            <button class="bg" style="padding:.38rem .7rem;font-size:.8rem" onclick="downloadTXT()">↓ .txt</button>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="note">
-      💡 <b>選什麼才有聲音？</b><br>
-      • <b>YouTube / 網頁影片</b>：選「<b>分頁（Tab）</b>」→ 勾「<b>共享分頁音訊</b>」，電腦靜音也能收<br>
-      • <b>Teams / Zoom 桌面版（Windows）</b>：選「<b>整個螢幕</b>」→ 勾「<b>共享系統音訊</b>」<br>
-      • <b>Teams / Zoom 桌面版（macOS）</b>：改用<b>瀏覽器版</b>（teams.microsoft.com）再選分頁，或只開麥克風收自己說話
+
+    <div class="note-simple">
+      💡 <b>錄音提示：</b> 錄製網頁音訊請選「分頁」並勾選「共享分頁音訊」。詳細平台設定請參閱下方使用說明。
     </div>
   </div>
 
@@ -449,54 +563,98 @@ details[open] summary::before { transform: rotate(90deg); }
     <div class="empty">按停止收音後，逐字稿將出現在這裡</div>
   </div>
 
-  <!-- 使用說明（可折疊） -->
+  <!-- 使用說明：三層資訊分層結構 -->
   <details>
-    <summary>使用說明與常見問題</summary>
+    <summary>📖 使用說明與隱私承諾</summary>
     <div class="guide">
+      
+      <!-- 🔒 核心信任賣點（保留並精簡） -->
+      <h3>隱私與安全承諾</h3>
+      <div class="trust-badges">
+        <div class="trust-card">
+          <b>🔑 Key 僅存於瀏覽器</b>
+          API Key 保存在你的本地記憶體中，關閉分頁即自動清除，不留存於伺服器。
+        </div>
+        <div class="trust-card">
+          <b>🛡️ 直連 Google 官方 API</b>
+          音訊資料直傳 Gemini API，完全不經過任何第三方或自架伺服器轉接。
+        </div>
+        <div class="trust-card">
+          <b>🎁 完全免費額度</b>
+          使用 Gemini 官方免費額度即可運作，每日提供高額免費轉錄次數。
+        </div>
+      </div>
 
-      <h3>事前準備</h3>
-      <ul>
-        <li>需要一個 <b>Gemini API Key</b>（免費）</li>
-        <li>取得方式：前往 <b>aistudio.google.com</b> → 登入 Google 帳號 → 點「Get API Key」→ 建立新 Key → 複製貼入上方欄位</li>
+      <!-- 📌 第一層：預設可見的核心內容 -->
+      
+      <!-- 1. API Key 取得 -->
+      <h3>1. 快速開始</h3>
+      <p style="font-size: .85rem; color: var(--fg); margin-bottom: .5rem;">
+        前往 <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--accent); font-weight: 600; text-decoration: underline;">Google AI Studio</a> 免費申請 API Key，貼入上方設定欄位即可使用。
+      </p>
+
+      <!-- 2. 三種模式三欄簡表 -->
+      <h3>2. 收音模式說明</h3>
+      <table class="guide-table">
+        <thead>
+          <tr>
+            <th>模式</th>
+            <th>收音內容</th>
+            <th>適合場合</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>🎙️ 只收麥克風</b></td>
+            <td>現場環境音 / 人聲</td>
+            <td>個人口述筆記、現場演講、實體會議</td>
+          </tr>
+          <tr>
+            <td><b>🖥️ 只收分頁音訊</b></td>
+            <td>瀏覽器單一分頁聲音</td>
+            <td>YouTube 影片、Podcast、網頁廣播</td>
+          </tr>
+          <tr>
+            <td><b>🎙️＋🖥️ 麥克風＋分頁</b></td>
+            <td>雙向聲音（自己＋網頁）</td>
+            <td>線上會議（Teams / Zoom）、網頁雙向對話</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 3. 選什麼才有聲音 Quick Checklist -->
+      <h3>3. 「選什麼才有聲音」快速對照</h3>
+      <ul style="font-size: .825rem; color: var(--fg);">
+        <li><b>YouTube / 線上影片</b>：選擇「只收分頁」→ 彈窗中勾選「共享分頁音訊」。</li>
+        <li><b>Teams / Zoom 會議</b>：選擇「麥克風＋分頁」→ 彈窗中選擇「整個螢幕」並勾選「共享系統音訊」。</li>
       </ul>
 
-      <h3>使用步驟</h3>
-      <ol>
-        <li>將 API Key 貼入「Gemini API Key」欄位</li>
-        <li>選擇語言（預設繁體中文）</li>
-        <li>選擇是否需要即時翻譯</li>
-        <li>點「🎙 麥克風收音」或「🖥 分頁 / 視窗 / 螢幕收音」開始錄音</li>
-        <li>錄音完成後點「■ 停止收音」</li>
-        <li>等待幾秒，逐字稿自動出現</li>
-        <li>點「↓ 下載 Markdown」儲存到本機</li>
-      </ol>
+      <!-- 📂 第二層：收合區塊（系統差異與 FAQ） -->
+      <details class="sub-details">
+        <summary>💻 Windows / macOS 系統選擇細節（點擊展開）</summary>
+        <div class="sub-content">
+          <ul>
+            <li><b>Windows 用戶</b>：支援分享「整個螢幕」並同時擷取系統聲音，桌面版會議軟體（Teams/Zoom/Google Meet）皆可順暢收音。</li>
+            <li><b>macOS 用戶</b>：因系統權限限制，建議將 Teams / Zoom 改用<b>瀏覽器網頁版</b>開啟，並選擇「分頁」收音才能成功抓取對方聲音。</li>
+          </ul>
+        </div>
+      </details>
 
-      <h3>三種收音模式</h3>
-      <ul>
-        <li><b>🎙 只收麥克風</b>：只錄自己說話，不收任何瀏覽器聲音。適合語音備忘、獨自說話的場合。</li>
-        <li><b>🖥 只收分頁音訊</b>：只收瀏覽器分頁的聲音，完全不收麥克風。適合 YouTube、線上課程、播放影片時，不想混入環境噪音。點按鈕後選分頁並勾選「<b>共享分頁音訊</b>」。電腦靜音也不影響收音。</li>
-        <li><b>🎙＋🖥 麥克風＋分頁</b>：同時收麥克風與瀏覽器分頁音訊，兩路合併。適合 Teams/Zoom 開會（自己說話＋對方聲音一起收）。點按鈕後：① 先允許麥克風 → ② 再選音訊來源並勾選音訊共享選項（見下）。若步驟②取消，會自動退回純麥克風繼續錄音。<br><br>
-          <b>選什麼才有聲音：</b><br>
-          • YouTube / 網頁影片 → 選「分頁（Tab）」+ 勾「共享分頁音訊」<br>
-          • Teams/Zoom 桌面版（Windows）→ 選「整個螢幕」+ 勾「共享系統音訊」<br>
-          • Teams/Zoom 桌面版（macOS）→ 改用瀏覽器版會議，再選分頁收音
-        </li>
-      </ul>
+      <details class="sub-details">
+        <summary>❓ 常見問題 QA（點擊展開）</summary>
+        <div class="sub-content">
+          <div class="qa">
+            <b>Q：為什麼轉出的文字沒有聲音？</b>
+            請確認分享螢幕或分頁時，有勾選對話框左下角或下方的「共享音訊 / 分享系統聲音」核取方塊。
+          </div>
+          <div class="qa">
+            <b>Q：錄音到一半會中斷嗎？</b>
+            當錄音檔案達到你設定的「自動轉檔大小」時，系統會自動在背景送出一段轉錄並繼續錄音，確保長會議也不中斷。
+          </div>
+        </div>
+      </details>
 
-      <h3>注意事項</h3>
-      <ul>
-        <li><b>API Key 安全</b>：Key 只存在瀏覽器記憶體，關閉頁面即消失，不會上傳或儲存</li>
-        <li><b>音訊隱私</b>：音訊由 Gemini（Google）處理，敏感內容請自行評估</li>
-        <li><b>免費額度</b>：每天約可轉錄 500 次，一般使用不會用完</li>
-        <li><b>超過 18 MB 自動分段</b>：長時間錄音（約 1.5 小時以上）會自動分段送出並繼續錄音</li>
-        <li><b>遇到錯誤</b>：系統會自動切換備用模型重試，通常不需要手動操作</li>
-        <li><b>使用模型</b>：主要使用 <code>gemini-3.1-flash-lite</code>，若遇到流量限制會自動切換至 <code>gemini-3.5-flash-lite</code> → <code>gemini-2.5-flash-lite</code></li>
-      </ul>
-
-      <h3>常見問題</h3>
-      <div class="qa"><b>Q：按停止後要等多久？</b>視錄音長度而定，1 小時的錄音大約等 30–60 秒。</div>
-      <div class="qa"><b>Q：可以離線使用嗎？</b>不行，需要連網才能呼叫 Gemini API。</div>
-      <div class="qa"><b>Q：逐字稿儲存在哪裡？</b>按「下載 Markdown」後儲存到你的電腦，網頁本身不保留任何資料。</div>
+      <!-- ❌ 第三層：已完全剔除（Gemini 模型名稱、音訊換算技術細節等，保持介面清爽） -->
 
     </div>
   </details>
