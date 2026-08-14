@@ -754,24 +754,16 @@ function appendSeg(time, text, translation = null) {
   const empty = area.querySelector('.empty');
   if (empty) empty.remove();
 
-  if (sessionSegs.length > 1) {
-    const hr = document.createElement('hr');
-    hr.className = 'divider';
-    area.appendChild(hr);
+  // 同一次錄音的文字全部接在同一個文字區塊，不分段
+  let mainText = area.querySelector('.session-main');
+  if (!mainText) {
+    mainText = document.createElement('div');
+    mainText.className = 'session-main seg-text';
+    area.appendChild(mainText);
   }
+  mainText.textContent += (mainText.textContent ? '\n' : '') + text;
 
-  const seg = document.createElement('div');
-  if (time) {
-    const t = document.createElement('div');
-    t.className = 'seg-time';
-    t.textContent = time;
-    seg.appendChild(t);
-  }
-  const p = document.createElement('div');
-  p.className = 'seg-text';
-  p.textContent = text;
-  seg.appendChild(p);
-
+  // 翻譯區塊仍逐段附加在文字區塊後
   if (translation) {
     const tBlock = document.createElement('div');
     tBlock.className = 'seg-translation';
@@ -782,10 +774,9 @@ function appendSeg(time, text, translation = null) {
     tTxt.textContent = translation;
     tBlock.appendChild(lbl);
     tBlock.appendChild(tTxt);
-    seg.appendChild(tBlock);
+    area.appendChild(tBlock);
   }
 
-  area.appendChild(seg);
   area.scrollTop = area.scrollHeight;
 }
 
