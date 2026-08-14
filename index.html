@@ -1221,6 +1221,7 @@ function createRecordingSession(startedAt = Date.now()) {
     stoppedAt: null,
     mode: currentMode,
     duration: null,
+    initialFeedbackFlushed: false,
     segments: [],
   };
   recordingSessions.push(session);
@@ -1319,6 +1320,7 @@ async function recoverSession() {
         stoppedAt: s.stoppedAt || null,
         mode: s.mode || target.mode || '',
         duration: s.duration ?? (s.startedAt && s.stoppedAt ? s.stoppedAt - s.startedAt : null),
+        initialFeedbackFlushed: !!s.initialFeedbackFlushed,
         segments: Array.isArray(s.segments) ? s.segments : [],
       }))
     : [];
@@ -1329,6 +1331,7 @@ async function recoverSession() {
       stoppedAt: target.updatedAt || null,
       mode: target.mode || '',
       duration: null,
+      initialFeedbackFlushed: true,
       segments: target.segs,
     }];
   }
@@ -1764,9 +1767,20 @@ function startRecorderOnStream(stream) {
     setRecordingSizeLabel(`${mb} MB`);
     status('錄音中', 'rec');
     const chunkMB = parseInt(document.getElementById('chunk-mb').value, 10) || 18;
-    if (recordingSize >= chunkMB * 1024 * 1024 && !autoFlushing) {
+    const hitSizeLimit = recordingSize >= chunkMB * 1024 * 1024;
+    const hitInitialFeedback =
+      currentRecordingSession &&
+      !currentRecordingSession.initialFeedbackFlushed &&
+      Date.now() - currentRecordingSession.startedAt >= 60000;
+    if ((hitSizeLimit || hitInitialFeedback) && !autoFlushing) {
       autoFlushing = true;
-      status(`音訊達 ${chunkMB} MB，自動送出並繼續錄音...`, 'proc');
+      if (currentRecordingSession) currentRecordingSession.initialFeedbackFlushed = true;
+      status(
+        hitInitialFeedback
+          ? '先送出前 1 分鐘音訊，確認轉錄正常...'
+          : `音訊達 ${chunkMB} MB，自動送出並繼續錄音...`,
+        'proc'
+      );
       recorder.stop();
     }
   };
