@@ -423,6 +423,9 @@ let recordingSize  = 0;
 let autoFlushing   = false;
 let sessionSegs    = [];
 let chunkIdx       = 0;
+let pendingApiCount  = 0;   // in-flight Gemini API calls
+let nextDisplaySeg   = 1;   // next segment number to render (for ordering)
+let segResultBuffer  = {};  // segNum → result, held until prior segments arrive
 
 // ── IndexedDB auto-save state ──────────────────────────────────────────────
 let idb              = null;  // IndexedDB instance (null = unavailable)
@@ -609,6 +612,9 @@ function beginRecording(stream) {
   recordingSize    = 0;
   autoFlushing     = false;
   chunkIdx         = 0;
+  pendingApiCount  = 0;
+  nextDisplaySeg   = 1;
+  segResultBuffer  = {};
   currentSessionId = `session_${Date.now()}`;
   setBtns(true);
   startRecorderOnStream(stream);
@@ -634,29 +640,42 @@ function startRecorderOnStream(stream) {
     }
   };
 
-  recorder.onstop = async () => {
+  recorder.onstop = () => {
     if (!pendingChunks.length) {
-      if (!isRecording) {
+      // No audio to send — if fully stopped and no in-flight API calls, wrap up
+      if (!isRecording && pendingApiCount === 0) {
         cleanupStreams();
         setBtns(false);
         status('收音已結束', 'done');
+        finishSession();
       }
       return;
     }
+
     const blob = new Blob(pendingChunks, { type: recorder.mimeType || 'audio/webm' });
     pendingChunks = [];
     recordingSize = 0;
     chunkIdx++;
-    status(`轉錄第 ${chunkIdx} 段中...`, 'proc');
-    await sendToGemini(blob);
+    const mySegNum = chunkIdx;
+
+    // Auto-flush: restart recorder immediately — no need to wait for API response
     if (isRecording) {
       autoFlushing = false;
       startRecorderOnStream(stream);
-    } else {
-      cleanupStreams();
-      setBtns(false);
-      status('收音已結束', 'done');
     }
+
+    // Fire API call in background; cleanup only after all calls settle
+    pendingApiCount++;
+    status(`轉錄第 ${mySegNum} 段中...`, 'proc');
+    sendToGemini(blob, 0, mySegNum).finally(() => {
+      pendingApiCount--;
+      if (!isRecording && pendingApiCount === 0) {
+        cleanupStreams();
+        setBtns(false);
+        status('收音已結束', 'done');
+        finishSession();
+      }
+    });
   };
 
   recorder.start(5000); // 每 5 秒收集一次資料以監控大小
@@ -753,16 +772,20 @@ function stopRecording() {
   ['btn-mic', 'btn-screen', 'btn-mixed', 'btn-stop'].forEach(id =>
     document.getElementById(id).disabled = true
   );
-  ['api-key', 'language', 'model', 'translate-to'].forEach(id =>
+  ['api-key', 'language', 'translate-to', 'chunk-mb'].forEach(id =>
     document.getElementById(id).disabled = true
   );
   if (recorder && recorder.state === 'recording') {
     status('停止收音，轉錄中...', 'proc');
-    recorder.stop(); // onstop 送出音訊、轉錄完成後再解鎖按鈕
+    recorder.stop(); // onstop 負責送出剩餘音訊，所有 API 請求完成後才解鎖
+  } else if (pendingApiCount > 0) {
+    status('等待轉錄完成...', 'proc');
+    // cleanup happens in sendToGemini's .finally() handler
   } else {
-    if (activeStream) activeStream.getTracks().forEach(t => t.stop());
+    cleanupStreams();
     setBtns(false);
     status('收音已結束', 'done');
+    finishSession();
   }
 }
 
@@ -780,14 +803,14 @@ const PRIMARY_MODEL   = 'gemini-3.1-flash-lite';
 const FALLBACK_MODELS = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-2.5-flash-lite'];
 
 // ── Send chunk to Gemini ───────────────────────────────────────────────────
-async function sendToGemini(blob, modelIdx = 0) {
+async function sendToGemini(blob, modelIdx = 0, segNum = null) {
   const apiKey   = document.getElementById('api-key').value.trim();
   const language = document.getElementById('language').value;
   const glossary = '';
   const primary  = PRIMARY_MODEL;
   const tryList  = [primary, ...FALLBACK_MODELS.filter(m => m !== primary)];
   if (modelIdx >= tryList.length) {
-    appendSeg('', '⚠️ 所有備用模型均忙碌，請稍後再試');
+    appendSeg('', '⚠️ 所有備用模型均忙碌，請稍後再試', null, segNum);
     status('轉錄失敗', '');
     return;
   }
@@ -853,18 +876,18 @@ async function sendToGemini(blob, modelIdx = 0) {
       if (waitSec !== null && waitSec <= 5) {
         status('稍後重試...', 'proc');
         await new Promise(r => setTimeout(r, waitSec * 1000));
-        return sendToGemini(blob, modelIdx);
+        return sendToGemini(blob, modelIdx, segNum);
       }
 
       // 其他錯誤（高流量、長時間限速、額度用完）→ 靜默切換備用模型
       const next = modelIdx + 1;
       if (next < tryList.length) {
         status(`切換備用模型中...`, 'proc');
-        return sendToGemini(blob, next);
+        return sendToGemini(blob, next, segNum);
       }
 
       // 所有模型都失敗才顯示錯誤
-      appendSeg('', `⚠️ 轉錄失敗，請稍後再試`);
+      appendSeg('', `⚠️ 轉錄失敗，請稍後再試`, null, segNum);
       status('轉錄失敗', '');
       return;
     }
@@ -878,11 +901,11 @@ async function sendToGemini(blob, modelIdx = 0) {
     const origText   = deloopText(origMatch  ? origMatch[1].trim()  : raw.trim());
     const transText  = transMatch ? deloopText(transMatch[1].trim()) : null;
 
-    appendSeg(now, origText, transText);
-    status(`第 ${chunkIdx} 段完成`, 'rec');
+    appendSeg(now, origText, transText, segNum);
+    status(`第 ${segNum ?? chunkIdx} 段完成`, 'rec');
 
   } catch (e) {
-    appendSeg('', `⚠️ 網路錯誤：${e.message}`);
+    appendSeg('', `⚠️ 網路錯誤：${e.message}`, null, segNum);
   }
 }
 
@@ -908,7 +931,23 @@ function deloopText(text) {
 }
 
 // ── Append segment ─────────────────────────────────────────────────────────
-function appendSeg(time, text, translation = null) {
+// segNum: when provided, buffers results and flushes in order (prevents
+// out-of-order display when multiple parallel API calls race to complete).
+function appendSeg(time, text, translation = null, segNum = null) {
+  if (segNum !== null) {
+    segResultBuffer[segNum] = { time, text, translation };
+    while (segResultBuffer[nextDisplaySeg] !== undefined) {
+      const r = segResultBuffer[nextDisplaySeg];
+      delete segResultBuffer[nextDisplaySeg];
+      nextDisplaySeg++;
+      _renderSeg(r.time, r.text, r.translation);
+    }
+  } else {
+    _renderSeg(time, text, translation);
+  }
+}
+
+function _renderSeg(time, text, translation) {
   sessionSegs.push({ time, text, translation });
 
   const area = document.getElementById('tarea');
@@ -947,6 +986,8 @@ function clearTranscript() {
   finishSession();
   sessionSegs      = [];
   chunkIdx         = 0;
+  nextDisplaySeg   = 1;
+  segResultBuffer  = {};
   currentSessionId = null;
   document.getElementById('tarea').innerHTML =
     '<div class="empty">按停止收音後，逐字稿將出現在這裡</div>';
