@@ -480,6 +480,14 @@ details[open] summary::before { transform: rotate(90deg); }
   line-height: 1.2;
   letter-spacing: 0;
 }
+.control-title {
+  font-size: clamp(2rem, 3.2vw, 3rem);
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: 0;
+  color: var(--fg);
+  margin: 0;
+}
 .transcript-title {
   font-size: clamp(1.9rem, 3.6vw, 3rem);
   line-height: 1.08;
@@ -630,6 +638,7 @@ details[open] summary::before { transform: rotate(90deg); }
   .drawer-body { padding: .95rem 1rem calc(1.5rem + env(safe-area-inset-bottom)); }
   .work-card-head, .transcript-head { flex-direction: column; align-items: stretch; }
   .work-card h1, .work-card h2 { font-size: 1.2rem; }
+  .control-title { font-size: 1.85rem; }
   .transcript-title { font-size: 1.75rem; }
   #sbar.status-badge {
     width: 100%;
@@ -820,8 +829,7 @@ details[open] summary::before { transform: rotate(90deg); }
     <section class="card work-card control-card">
     <div class="work-card-head">
       <div>
-        <div class="slabel">🎙️ 收音控制</div>
-        <h1>漸字稿系統</h1>
+        <h1 class="control-title">🎙️ 收音控制</h1>
       </div>
       <div id="sbar" class="status-badge">
         <div id="sdot"></div>
