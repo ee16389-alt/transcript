@@ -894,7 +894,7 @@ details[open] summary::before { transform: rotate(90deg); }
       </div>
     </div>
     <div id="tarea">
-      <div class="empty">按停止收音後，逐字稿將出現在這裡</div>
+      <div class="empty">開始收音後，轉錄完成的內容會陸續顯示在這裡</div>
     </div>
     </section>
   </div>
@@ -1142,7 +1142,7 @@ async function recoverSession() {
     sessionSegs = [];
     recovered.forEach(s => _renderSeg(s.time, s.text, s.translation, s.isError, s.startSec, s.endSec));
   } else {
-    area.innerHTML = '<div class="empty">按停止收音後，逐字稿將出現在這裡</div>';
+    area.innerHTML = '<div class="empty">開始收音後，轉錄完成的內容會陸續顯示在這裡</div>';
   }
   status('已復原上次未完成的逐字稿', 'done');
   updateExportButtons();
@@ -1916,7 +1916,7 @@ function clearTranscript() {
   segResultBuffer  = {};
   currentSessionId = null;
   document.getElementById('tarea').innerHTML =
-    '<div class="empty">按停止收音後，逐字稿將出現在這裡</div>';
+    '<div class="empty">開始收音後，轉錄完成的內容會陸續顯示在這裡</div>';
   scheduleFileBackup();
   updateExportButtons();
   status('已清除記錄');
