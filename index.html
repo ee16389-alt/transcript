@@ -275,10 +275,6 @@ details[open] summary::before { transform: rotate(90deg); }
         </select>
       </div>
       <div>
-        <label>Gemini 模型</label>
-        <input type="text" id="model" value="gemini-3.1-flash-lite">
-      </div>
-      <div>
         <label>即時翻譯</label>
         <select id="translate-to">
           <option value="">不翻譯</option>
@@ -362,6 +358,7 @@ details[open] summary::before { transform: rotate(90deg); }
       <li><b>免費額度</b>：每天約可轉錄 500 次，一般使用不會用完</li>
       <li><b>超過 18 MB 自動分段</b>：長時間錄音（約 1.5 小時以上）會自動分段送出並繼續錄音</li>
       <li><b>遇到錯誤</b>：系統會自動切換備用模型重試，通常不需要手動操作</li>
+      <li><b>使用模型</b>：主要使用 <code>gemini-3.1-flash-lite</code>，若遇到流量限制會自動切換至 <code>gemini-3.5-flash-lite</code> → <code>gemini-2.5-flash-lite</code></li>
     </ul>
 
     <h3>常見問題</h3>
@@ -399,7 +396,7 @@ function status(msg, cls) {
 function setBtns(recording) {
   ['btn-mic', 'btn-screen', 'btn-mixed'].forEach(id => document.getElementById(id).disabled = recording);
   document.getElementById('btn-stop').disabled = !recording;
-  ['api-key', 'language', 'model', 'translate-to'].forEach(id =>
+  ['api-key', 'language', 'translate-to'].forEach(id =>
     document.getElementById(id).disabled = recording
   );
 }
@@ -619,6 +616,7 @@ function validate() {
 }
 
 // ── Model fallback list ────────────────────────────────────────────────────
+const PRIMARY_MODEL   = 'gemini-3.1-flash-lite';
 const FALLBACK_MODELS = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-2.5-flash-lite'];
 
 // ── Send chunk to Gemini ───────────────────────────────────────────────────
@@ -626,7 +624,7 @@ async function sendToGemini(blob, modelIdx = 0) {
   const apiKey   = document.getElementById('api-key').value.trim();
   const language = document.getElementById('language').value;
   const glossary = '';
-  const primary  = document.getElementById('model').value.trim() || FALLBACK_MODELS[0];
+  const primary  = PRIMARY_MODEL;
   const tryList  = [primary, ...FALLBACK_MODELS.filter(m => m !== primary)];
   if (modelIdx >= tryList.length) {
     appendSeg('', '⚠️ 所有備用模型均忙碌，請稍後再試');
