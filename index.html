@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+(function(){
+  var s=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+  if(s==='dark')document.documentElement.setAttribute('data-theme','dark');
+})();
+</script>
 <title>漸字稿系統</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -62,7 +68,7 @@ body {
   border: 1px solid var(--accent-bdr);
   border-radius: 20px; padding: .15rem .6rem; margin-left: .1rem;
 }
-.topbar-qr { margin-left: auto; text-align: center; }
+.topbar-qr { text-align: center; }
 .qr-box {
   display: inline-block; padding: 7px;
   background: #fff; border: 1px solid var(--border);
@@ -156,6 +162,8 @@ button:active:not(:disabled) { transform: translateY(1px); filter: brightness(.9
 #sdot.proc { background: var(--warning); animation: blink .9s infinite; }
 #sdot.done { background: var(--accent); }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+#sdot.api { background: var(--accent); animation: sdot-bounce .7s ease-in-out infinite; }
+@keyframes sdot-bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
 
 /* ── Transcript area ────────────────────────────────────────────────────── */
 #tarea {
@@ -200,6 +208,9 @@ button:active:not(:disabled) { transform: translateY(1px); filter: brightness(.9
   margin: .35rem 0;
 }
 
+@keyframes seg-fadein { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+.seg-fadein { animation: seg-fadein 250ms ease forwards; }
+
 /* ── Toast notification ─────────────────────────────────────────────────── */
 #toast {
   position: fixed;
@@ -220,6 +231,23 @@ button:active:not(:disabled) { transform: translateY(1px); filter: brightness(.9
   white-space: nowrap;
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast-info {
+  position: fixed;
+  top: 4.5rem; right: 1.5rem;
+  background: rgba(30,41,59,.92);
+  color: #E2E8F0;
+  font-size: .8rem; font-weight: 500;
+  padding: .45rem 1rem;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.25);
+  opacity: 0;
+  transition: opacity .25s, transform .25s;
+  transform: translateY(-6px);
+  pointer-events: none;
+  z-index: 200;
+  max-width: 260px;
+}
+#toast-info.show { opacity: 1; transform: translateY(0); }
 
 /* ── Note ───────────────────────────────────────────────────────────────── */
 .note {
@@ -277,6 +305,28 @@ details[open] summary::before { transform: rotate(90deg); }
   .grid2  { grid-template-columns: 1fr; }
   .topbar-tag { display: none; }
 }
+
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg:          #0F172A;
+  --surface:     #1E293B;
+  --fg:          #E2E8F0;
+  --muted:       #94A3B8;
+  --border:      #334155;
+  --border-d:    #475569;
+  --accent-soft: #0D2A26;
+  --accent-ring: rgba(13,148,136,.3);
+  --accent-bdr:  #134E4A;
+  --danger-soft: #2D1515;
+  --danger-bdr:  #7F1D1D;
+  --sh-sm:       0 1px 3px rgba(0,0,0,.4);
+  --sh-card:     0 2px 8px rgba(0,0,0,.5);
+}
+[data-theme="dark"] .qr-box { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] #recover-bar { background: #1C1A0A; border-color: #92400E; color: #FCD34D; }
+[data-theme="dark"] .recover-btns .bp { background: var(--accent); }
+[data-theme="dark"] .recover-btns .bs { background: var(--surface); color: var(--fg); }
+[data-theme="dark"] #toast-info { background: rgba(15,23,42,.95); }
 </style>
 </head>
 <body>
@@ -288,9 +338,12 @@ details[open] summary::before { transform: rotate(90deg); }
   </div>
   <span class="topbar-name">漸字稿系統</span>
   <span class="topbar-tag">免費 · 隱私優先</span>
-  <div class="topbar-qr">
-    <div class="qr-box"><div id="qrcode"></div></div>
-    <div class="qr-label">掃描開啟</div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:.75rem">
+    <button id="btn-theme" onclick="toggleTheme()" class="bs" style="padding:.28rem .6rem;min-height:28px;font-size:.85rem;border-radius:6px" title="切換深色模式">🌙</button>
+    <div class="topbar-qr" style="margin-left:0">
+      <div class="qr-box"><div id="qrcode"></div></div>
+      <div class="qr-label">掃描開啟</div>
+    </div>
   </div>
 </header>
 
@@ -368,7 +421,11 @@ details[open] summary::before { transform: rotate(90deg); }
       <button class="bd" id="btn-stop"   onclick="stopRecording()" disabled>■ 停止收音</button>
       <button class="bs" id="btn-mute"   onclick="toggleMicMute()" style="display:none">🔇 靜音麥克風</button>
       <button class="bs" onclick="clearTranscript()">清除記錄</button>
-      <button class="bg" onclick="downloadTranscript()">↓ 下載 Markdown</button>
+      <div style="display:flex;gap:.3rem">
+        <button class="bg" style="padding:.38rem .7rem;font-size:.8rem" onclick="downloadTranscript()">↓ .md</button>
+        <button class="bg" style="padding:.38rem .7rem;font-size:.8rem" onclick="downloadSRT()">↓ .srt</button>
+        <button class="bg" style="padding:.38rem .7rem;font-size:.8rem" onclick="downloadTXT()">↓ .txt</button>
+      </div>
     </div>
     <div class="note">
       💡 <b>選什麼才有聲音？</b><br>
@@ -459,6 +516,14 @@ let chunkIdx       = 0;
 let pendingApiCount  = 0;   // in-flight Gemini API calls
 let nextDisplaySeg   = 1;   // next segment number to render (for ordering)
 let segResultBuffer  = {};  // segNum → result, held until prior segments arrive
+
+// ── Feature 2: timing state ────────────────────────────────────────────────
+let recordingStartMs = 0;   // Date.now() when beginRecording() was called
+let chunkStartMs     = 0;   // Date.now() when current chunk's recorder.start() was called
+
+// ── Feature 3: API wait timer state ───────────────────────────────────────
+let _apiWaitTimer = null;
+let _apiWaitStart = 0;
 
 // ── IndexedDB auto-save state ──────────────────────────────────────────────
 let idb              = null;  // IndexedDB instance (null = unavailable)
@@ -565,7 +630,7 @@ async function recoverSession() {
     // doesn't double-add (sessionSegs was just loaded from IndexedDB above)
     const recovered = sessionSegs.slice();
     sessionSegs = [];
-    recovered.forEach(s => _renderSeg(s.time, s.text, s.translation, s.isError));
+    recovered.forEach(s => _renderSeg(s.time, s.text, s.translation, s.isError, s.startSec, s.endSec));
   } else {
     area.innerHTML = '<div class="empty">按停止收音後，逐字稿將出現在這裡</div>';
   }
@@ -601,12 +666,38 @@ function showToast(msg, duration = 3500) {
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => el.classList.remove('show'), duration);
 }
+
+let _toastInfoTimer = null;
+function showInfoToast(msg, duration = 2500) {
+  const el = document.getElementById('toast-info');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastInfoTimer);
+  _toastInfoTimer = setTimeout(() => el.classList.remove('show'), duration);
+}
+
 function setBtns(recording) {
   ['btn-mic', 'btn-screen', 'btn-mixed'].forEach(id => document.getElementById(id).disabled = recording);
   document.getElementById('btn-stop').disabled = !recording;
   ['api-key', 'language', 'translate-to', 'chunk-mb'].forEach(id =>
     document.getElementById(id).disabled = recording
   );
+}
+
+// ── Feature 3: API wait timer functions ────────────────────────────────────
+function _startApiWait() {
+  if (_apiWaitTimer || isRecording) return; // only show when not recording
+  _apiWaitStart = Date.now();
+  _apiWaitTimer = setInterval(() => {
+    if (pendingApiCount === 0) { _stopApiWait(); return; }
+    const sec = Math.round((Date.now() - _apiWaitStart) / 1000);
+    const suffix = sec >= 15 ? '，音訊較長，請稍候' : '';
+    const label = pendingApiCount > 1 ? `轉錄 ${pendingApiCount} 段` : '轉錄';
+    status(`${label}中…（已等待 ${sec} 秒${suffix}）`, 'api');
+  }, 1000);
+}
+function _stopApiWait() {
+  if (_apiWaitTimer) { clearInterval(_apiWaitTimer); _apiWaitTimer = null; }
 }
 
 // ── Cleanup all active streams & audio context ─────────────────────────────
@@ -647,6 +738,8 @@ function beginRecording(stream) {
   nextDisplaySeg   = 1;
   segResultBuffer  = {};
   currentSessionId = `session_${Date.now()}`;
+  recordingStartMs = Date.now();
+  chunkStartMs     = Date.now();
   setBtns(true);
   startRecorderOnStream(stream);
 }
@@ -689,6 +782,11 @@ function startRecorderOnStream(stream) {
     chunkIdx++;
     const mySegNum = chunkIdx;
 
+    // Feature 2: capture timing before firing API
+    const segEndSec   = (Date.now() - recordingStartMs) / 1000;
+    const segStartSec = (chunkStartMs - recordingStartMs) / 1000;
+    chunkStartMs = Date.now(); // next chunk's start
+
     // Auto-flush: restart recorder immediately — no need to wait for API response
     if (isRecording) {
       autoFlushing = false;
@@ -697,9 +795,11 @@ function startRecorderOnStream(stream) {
 
     // Fire API call in background; cleanup only after all calls settle
     pendingApiCount++;
+    _startApiWait();
     status(`轉錄第 ${mySegNum} 段中...`, 'proc');
-    sendToGemini(blob, 0, mySegNum).finally(() => {
+    sendToGemini(blob, 0, mySegNum, segStartSec, segEndSec).finally(() => {
       pendingApiCount--;
+      _stopApiWait();
       if (!isRecording && pendingApiCount === 0) {
         cleanupStreams();
         setBtns(false);
@@ -790,6 +890,10 @@ async function startMixed() {
       : '錄音中（純麥克風，未取得分頁音訊）';
     currentMode = screenAudio.length ? '麥克風＋分頁' : '麥克風';
     status(label, 'rec');
+
+    // Feature 5: show info toast if fell back to mic-only
+    if (!screenAudio.length) showInfoToast('未選擇分頁分享，已切換為僅收麥克風');
+
     beginRecording(dest.stream);
   } catch (e) {
     status('⚠️ ' + e.message);
@@ -834,14 +938,14 @@ const PRIMARY_MODEL   = 'gemini-3.1-flash-lite';
 const FALLBACK_MODELS = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-2.5-flash-lite'];
 
 // ── Send chunk to Gemini ───────────────────────────────────────────────────
-async function sendToGemini(blob, modelIdx = 0, segNum = null) {
+async function sendToGemini(blob, modelIdx = 0, segNum = null, startSec = null, endSec = null) {
   const apiKey   = document.getElementById('api-key').value.trim();
   const language = document.getElementById('language').value;
   const glossary = '';
   const primary  = PRIMARY_MODEL;
   const tryList  = [primary, ...FALLBACK_MODELS.filter(m => m !== primary)];
   if (modelIdx >= tryList.length) {
-    appendSeg('', '⚠️ 所有備用模型均忙碌，請稍後再試', null, segNum, true);
+    appendSeg('', '⚠️ 所有備用模型均忙碌，請稍後再試', null, segNum, true, startSec, endSec);
     showToast('轉錄失敗：所有備用模型均忙碌');
     return;
   }
@@ -907,18 +1011,18 @@ async function sendToGemini(blob, modelIdx = 0, segNum = null) {
       if (waitSec !== null && waitSec <= 5) {
         status('稍後重試...', 'proc');
         await new Promise(r => setTimeout(r, waitSec * 1000));
-        return sendToGemini(blob, modelIdx, segNum);
+        return sendToGemini(blob, modelIdx, segNum, startSec, endSec);
       }
 
       // 其他錯誤（高流量、長時間限速、額度用完）→ 靜默切換備用模型
       const next = modelIdx + 1;
       if (next < tryList.length) {
         status(`切換備用模型中...`, 'proc');
-        return sendToGemini(blob, next, segNum);
+        return sendToGemini(blob, next, segNum, startSec, endSec);
       }
 
       // 所有模型都失敗才顯示錯誤
-      appendSeg('', `⚠️ 轉錄失敗，請稍後再試`, null, segNum, true);
+      appendSeg('', `⚠️ 轉錄失敗，請稍後再試`, null, segNum, true, startSec, endSec);
       showToast('轉錄失敗，請稍後再試');
       return;
     }
@@ -932,11 +1036,11 @@ async function sendToGemini(blob, modelIdx = 0, segNum = null) {
     const origText   = deloopText(origMatch  ? origMatch[1].trim()  : raw.trim());
     const transText  = transMatch ? deloopText(transMatch[1].trim()) : null;
 
-    appendSeg(now, origText, transText, segNum);
+    appendSeg(now, origText, transText, segNum, false, startSec, endSec);
     status(`第 ${segNum ?? chunkIdx} 段完成`, 'rec');
 
   } catch (e) {
-    appendSeg('', `⚠️ 網路錯誤：${e.message}`, null, segNum, true);
+    appendSeg('', `⚠️ 網路錯誤：${e.message}`, null, segNum, true, startSec, endSec);
     showToast(`網路錯誤：${e.message}`);
   }
 }
@@ -965,22 +1069,22 @@ function deloopText(text) {
 // ── Append segment ─────────────────────────────────────────────────────────
 // segNum: when provided, buffers results and flushes in order (prevents
 // out-of-order display when multiple parallel API calls race to complete).
-function appendSeg(time, text, translation = null, segNum = null, isError = false) {
+function appendSeg(time, text, translation = null, segNum = null, isError = false, startSec = null, endSec = null) {
   if (segNum !== null) {
-    segResultBuffer[segNum] = { time, text, translation, isError };
+    segResultBuffer[segNum] = { time, text, translation, isError, startSec, endSec };
     while (segResultBuffer[nextDisplaySeg] !== undefined) {
       const r = segResultBuffer[nextDisplaySeg];
       delete segResultBuffer[nextDisplaySeg];
       nextDisplaySeg++;
-      _renderSeg(r.time, r.text, r.translation, r.isError);
+      _renderSeg(r.time, r.text, r.translation, r.isError, r.startSec, r.endSec);
     }
   } else {
-    _renderSeg(time, text, translation, isError);
+    _renderSeg(time, text, translation, isError, startSec, endSec);
   }
 }
 
-function _renderSeg(time, text, translation, isError = false) {
-  sessionSegs.push({ time, text, translation, isError });
+function _renderSeg(time, text, translation, isError = false, startSec = null, endSec = null) {
+  sessionSegs.push({ time, text, translation, isError, startSec, endSec });
 
   const area = document.getElementById('tarea');
   const empty = area.querySelector('.empty');
@@ -989,7 +1093,7 @@ function _renderSeg(time, text, translation, isError = false) {
   if (isError) {
     // 錯誤訊息獨立顯示，與正常轉錄文字明顯區隔
     const errBlock = document.createElement('div');
-    errBlock.className = 'seg-error';
+    errBlock.className = 'seg-error seg-fadein';
     errBlock.textContent = text;
     area.appendChild(errBlock);
   } else {
@@ -1000,12 +1104,16 @@ function _renderSeg(time, text, translation, isError = false) {
       mainText.className = 'session-main seg-text';
       area.appendChild(mainText);
     }
-    mainText.textContent += (mainText.textContent ? '\n' : '') + text;
+    // Append as a fade-in span child
+    const span = document.createElement('span');
+    span.className = 'seg-fadein';
+    span.textContent = (mainText.childNodes.length > 0 ? '\n' : '') + text;
+    mainText.appendChild(span);
 
     // 翻譯區塊仍逐段附加在文字區塊後
     if (translation) {
       const tBlock = document.createElement('div');
-      tBlock.className = 'seg-translation';
+      tBlock.className = 'seg-translation seg-fadein';
       const lbl = document.createElement('div');
       lbl.className = 'seg-translation-label';
       lbl.textContent = document.getElementById('translate-to').value;
@@ -1018,7 +1126,9 @@ function _renderSeg(time, text, translation, isError = false) {
   }
 
   scheduleAutosave();
-  area.scrollTop = area.scrollHeight;
+  // Feature 1: smart auto-scroll
+  const atBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 80;
+  if (atBottom) area.scrollTop = area.scrollHeight;
 }
 
 // ── Clear ──────────────────────────────────────────────────────────────────
@@ -1057,6 +1167,42 @@ function downloadTranscript() {
   finishSession();
 }
 
+// ── Download SRT ───────────────────────────────────────────────────────────
+function downloadSRT() {
+  const segs = sessionSegs.filter(s => !s.isError && s.startSec != null);
+  if (!segs.length) { status('⚠️ 尚無可匯出的 SRT 內容'); return; }
+  function toSRTTime(sec) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+    const ms = Math.round((sec % 1) * 1000);
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')},${String(ms).padStart(3,'0')}`;
+  }
+  let srt = '';
+  segs.forEach((s, i) => {
+    srt += `${i + 1}\n${toSRTTime(s.startSec)} --> ${toSRTTime(s.endSec)}\n${s.text}\n\n`;
+  });
+  const a = document.createElement('a');
+  const today = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
+  a.href = URL.createObjectURL(new Blob([srt], { type: 'text/srt;charset=utf-8' }));
+  a.download = `逐字稿_${today}.srt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ── Download TXT ───────────────────────────────────────────────────────────
+function downloadTXT() {
+  const segs = sessionSegs.filter(s => !s.isError);
+  if (!segs.length) { status('⚠️ 尚無內容可下載'); return; }
+  const today = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
+  const txt = segs.map(s => s.text).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain;charset=utf-8' }));
+  a.download = `逐字稿_${today}.txt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 // ── API quota hint (動態依 MB 設定更新) ────────────────────────────────────
 const MB_MIN_MAP = { '3': 8.5, '5': 13.5, '10': 27.5, '15': 41, '18': 50 };
 const FREE_RPD   = 500; // gemini-3.1-flash-lite 免費每日呼叫上限
@@ -1084,11 +1230,13 @@ updateQuotaHint(); // 頁面載入時立即顯示
       .filter(s => !s.finished)
       .sort((a, b) => b.updatedAt - a.updatedAt);
     if (recoverCandidates.length) {
-      const s   = recoverCandidates[0];
-      const dt  = new Date(s.updatedAt).toLocaleString('zh-TW');
-      const cnt = sessionSegs.length || (s.segs || []).length;
+      const s = recoverCandidates[0];
+      const segs = s.segs || [];
+      const wordCount = segs.filter(sg => !sg.isError).reduce((n, sg) => n + (sg.text || '').replace(/\s/g,'').length, 0);
+      const minAgo = Math.round((Date.now() - s.updatedAt) / 60000);
+      const timeLabel = minAgo < 1 ? '剛才' : minAgo < 60 ? `${minAgo} 分鐘前` : `${Math.round(minAgo/60)} 小時前`;
       document.getElementById('recover-msg').textContent =
-        `偵測到上次未完成的「${s.mode || ''}」錄音（${dt}，${cnt} 段），是否復原？`;
+        `偵測到未完成的逐字稿 — 約 ${wordCount} 字，收音：${s.mode || '未知'}，最後更新 ${timeLabel}`;
       document.getElementById('recover-bar').classList.add('show');
     }
   } catch (_) {
@@ -1109,6 +1257,28 @@ updateQuotaHint(); // 頁面載入時立即顯示
   document.head.appendChild(s);
 })();
 
+// ── Dark mode toggle ──────────────────────────────────────────────────────
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const next = isDark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  document.getElementById('btn-theme').textContent = next === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('theme', next);
+}
+(function initTheme() {
+  if (document.documentElement.getAttribute('data-theme') === 'dark') {
+    const btn = document.getElementById('btn-theme');
+    if (btn) btn.textContent = '☀️';
+  }
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+    if (!localStorage.getItem('theme')) {
+      document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+      const btn = document.getElementById('btn-theme');
+      if (btn) btn.textContent = e.matches ? '☀️' : '🌙';
+    }
+  });
+})();
+
 // ── Blob → base64 ─────────────────────────────────────────────────────────
 function blobToBase64(blob) {
   return new Promise((res, rej) => {
@@ -1119,6 +1289,7 @@ function blobToBase64(blob) {
   });
 }
 </script>
+<div id="toast-info"></div>
 <div id="toast"></div>
 </body>
 </html>
