@@ -342,7 +342,7 @@ details {
   overflow: hidden;
 }
 summary {
-  padding: 1rem 1.4rem; font-size: .875rem; font-weight: 600;
+  padding: 1rem 1.4rem; font-size: .95rem; font-weight: 700;
   cursor: pointer; list-style: none;
   display: flex; align-items: center; gap: .6rem; color: var(--fg);
   user-select: none; transition: background 150ms ease;
@@ -354,10 +354,10 @@ summary::before {
   transition: transform 220ms ease;
 }
 details[open] summary::before { transform: rotate(90deg); }
-.guide { padding: 0 1.4rem 1.4rem; font-size: .875rem; line-height: 1.8; border-top: 1px solid var(--border); }
+.guide { padding: 0 1.4rem 1.4rem; font-size: .9rem; line-height: 1.75; border-top: 1px solid var(--border); }
 .guide h3 {
-  font-size: .7rem; font-weight: 700; color: var(--muted);
-  text-transform: uppercase; letter-spacing: .09em; margin: 1.25rem 0 .5rem;
+  font-size: .95rem; font-weight: 800; color: var(--fg);
+  text-transform: none; letter-spacing: 0; margin: 1.25rem 0 .6rem;
 }
 .guide ul, .guide ol { padding-left: 1.25rem; }
 .guide li { margin-bottom: .35rem; }
@@ -369,8 +369,8 @@ details[open] summary::before { transform: rotate(90deg); }
   border: 1px solid var(--border); border-radius: var(--r-base);
   margin-top: .75rem; box-shadow: none;
 }
-.sub-details summary { padding: .65rem .9rem; font-size: .825rem; font-weight: 600; }
-.sub-details .sub-content { padding: .75rem .9rem; border-top: 1px solid var(--border); font-size: .825rem; }
+.sub-details summary { padding: .75rem .95rem; font-size: .9rem; font-weight: 700; }
+.sub-details .sub-content { padding: .85rem .95rem; border-top: 1px solid var(--border); font-size: .9rem; }
 
 /* Responsive */
 @media (max-width: 600px) {
@@ -386,7 +386,7 @@ details[open] summary::before { transform: rotate(90deg); }
   width: 100%;
   border-collapse: collapse;
   margin: .75rem 0;
-  font-size: .825rem;
+  font-size: .875rem;
 }
 .guide-table th, .guide-table td {
   padding: .55rem .75rem;
@@ -397,7 +397,7 @@ details[open] summary::before { transform: rotate(90deg); }
   background: var(--bg);
   color: var(--fg);
   font-weight: 600;
-  font-size: .75rem;
+  font-size: .85rem;
 }
 .guide-table td {
   color: var(--fg);
@@ -415,14 +415,14 @@ details[open] summary::before { transform: rotate(90deg); }
   border: 1px solid var(--accent-bdr);
   border-radius: var(--r-base);
   padding: .65rem .85rem;
-  font-size: .78rem;
+  font-size: .875rem;
   color: var(--accent-h);
   line-height: 1.45;
 }
 .trust-card b {
   display: block;
   color: var(--accent);
-  font-size: .825rem;
+  font-size: .9rem;
   margin-bottom: .2rem;
 }
 
@@ -978,7 +978,7 @@ details[open] summary::before { transform: rotate(90deg); }
     <section class="card work-card transcript-card">
     <div class="work-card-head transcript-head">
       <div>
-        <h2 class="transcript-title">逐字稿顯示區</h2>
+        <h2 class="transcript-title">漸字稿顯示區</h2>
       </div>
       <div class="export-actions">
         <button class="bg export-btn" id="btn-copy" onclick="copyTranscript()" disabled>Copy</button>
@@ -1019,7 +1019,7 @@ details[open] summary::before { transform: rotate(90deg); }
       
       <!-- 1. API Key 取得 -->
       <h3>1. 快速開始</h3>
-      <p style="font-size: .85rem; color: var(--fg); margin-bottom: .5rem;">
+      <p style="color: var(--fg); margin-bottom: .5rem;">
         前往 <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--accent); font-weight: 600; text-decoration: underline;">Google AI Studio</a> 免費申請 API Key，貼入上方設定欄位即可使用。
       </p>
 
@@ -1056,7 +1056,7 @@ details[open] summary::before { transform: rotate(90deg); }
 
       <!-- 3. 選什麼才有聲音 Quick Checklist -->
       <h3>3. 「選什麼才有聲音」快速對照</h3>
-      <ul style="font-size: .825rem; color: var(--fg);">
+      <ul style="color: var(--fg);">
         <li><b>YouTube / 線上影片</b>：選擇「只收分頁」→ 彈窗中勾選「共享分頁音訊」。</li>
         <li><b>Teams / Zoom 會議</b>：選擇「麥克風＋分頁」→ 彈窗中選擇「整個螢幕」並勾選「共享系統音訊」。</li>
       </ul>
