@@ -523,6 +523,11 @@ details[open] summary::before { transform: rotate(90deg); }
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: 1rem; margin-bottom: 1rem;
 }
+.control-card .work-card-head {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: start;
+}
 .work-card h1, .work-card h2 {
   font-size: clamp(1.25rem, 2vw, 1.65rem);
   line-height: 1.2;
@@ -535,6 +540,7 @@ details[open] summary::before { transform: rotate(90deg); }
   letter-spacing: 0;
   color: var(--fg);
   margin: 0;
+  white-space: nowrap;
 }
 .transcript-title {
   font-size: clamp(1.9rem, 3.6vw, 3rem);
@@ -598,7 +604,16 @@ details[open] summary::before { transform: rotate(90deg); }
   min-height: 36px;
   box-shadow: none;
   background: var(--bg);
-  flex-shrink: 0;
+  justify-self: end;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+#stext {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 #sdot.rec { background: var(--danger); animation: blink 1.1s infinite ease-in-out; }
 #recording-timer {
@@ -685,6 +700,11 @@ details[open] summary::before { transform: rotate(90deg); }
   .drawer-head { padding: 1rem 1rem .85rem; }
   .drawer-body { padding: .95rem 1rem calc(1.5rem + env(safe-area-inset-bottom)); }
   .work-card-head, .transcript-head { flex-direction: column; align-items: stretch; }
+  .control-card .work-card-head {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
   .work-card h1, .work-card h2 { font-size: 1.2rem; }
   .control-title { font-size: 1.85rem; }
   .transcript-title { font-size: 1.75rem; }
@@ -694,12 +714,6 @@ details[open] summary::before { transform: rotate(90deg); }
     min-height: 44px;
     padding: .5rem .7rem;
     overflow: hidden;
-  }
-  #stext {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .mode-grid { grid-template-columns: 1fr; }
   .mode-card { min-height: 58px; padding: .72rem .8rem; }
