@@ -188,6 +188,39 @@ button:active:not(:disabled) { transform: translateY(1px); filter: brightness(.9
 }
 .divider { border: none; border-top: 1px solid var(--border); margin: .85rem 0; }
 
+/* ── Error segment in transcript area ───────────────────────────────────── */
+.seg-error {
+  font-style: italic;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-bdr);
+  border-radius: var(--r-base);
+  padding: .28rem .7rem;
+  font-size: .82rem;
+  margin: .35rem 0;
+}
+
+/* ── Toast notification ─────────────────────────────────────────────────── */
+#toast {
+  position: fixed;
+  bottom: 1.6rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  background: var(--danger);
+  color: #fff;
+  font-size: .82rem;
+  font-weight: 600;
+  padding: .45rem 1.1rem;
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.2);
+  opacity: 0;
+  transition: opacity .22s, transform .22s;
+  pointer-events: none;
+  z-index: 200;
+  white-space: nowrap;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
 /* ── Note ───────────────────────────────────────────────────────────────── */
 .note {
   font-size: .78rem; color: var(--muted); line-height: 1.6;
@@ -528,22 +561,11 @@ async function recoverSession() {
   const area = document.getElementById('tarea');
   area.innerHTML = '';
   if (sessionSegs.length) {
-    const main = document.createElement('div');
-    main.className = 'session-main seg-text';
-    main.textContent = sessionSegs.map(s => s.text).join('\n');
-    area.appendChild(main);
-    sessionSegs.filter(s => s.translation).forEach(s => {
-      const tBlock = document.createElement('div');
-      tBlock.className = 'seg-translation';
-      const lbl = document.createElement('div');
-      lbl.className = 'seg-translation-label';
-      lbl.textContent = s.translation ? '翻譯' : '';
-      const tTxt = document.createElement('div');
-      tTxt.textContent = s.translation;
-      tBlock.appendChild(lbl);
-      tBlock.appendChild(tTxt);
-      area.appendChild(tBlock);
-    });
+    // Re-render each segment via _renderSeg; first clear so _renderSeg's push
+    // doesn't double-add (sessionSegs was just loaded from IndexedDB above)
+    const recovered = sessionSegs.slice();
+    sessionSegs = [];
+    recovered.forEach(s => _renderSeg(s.time, s.text, s.translation, s.isError));
   } else {
     area.innerHTML = '<div class="empty">按停止收音後，逐字稿將出現在這裡</div>';
   }
@@ -569,6 +591,15 @@ function dot(cls) {
 function status(msg, cls) {
   document.getElementById('stext').textContent = msg;
   dot(cls || '');
+}
+
+let _toastTimer = null;
+function showToast(msg, duration = 3500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), duration);
 }
 function setBtns(recording) {
   ['btn-mic', 'btn-screen', 'btn-mixed'].forEach(id => document.getElementById(id).disabled = recording);
@@ -810,8 +841,8 @@ async function sendToGemini(blob, modelIdx = 0, segNum = null) {
   const primary  = PRIMARY_MODEL;
   const tryList  = [primary, ...FALLBACK_MODELS.filter(m => m !== primary)];
   if (modelIdx >= tryList.length) {
-    appendSeg('', '⚠️ 所有備用模型均忙碌，請稍後再試', null, segNum);
-    status('轉錄失敗', '');
+    appendSeg('', '⚠️ 所有備用模型均忙碌，請稍後再試', null, segNum, true);
+    showToast('轉錄失敗：所有備用模型均忙碌');
     return;
   }
   const model    = tryList[modelIdx];
@@ -887,8 +918,8 @@ async function sendToGemini(blob, modelIdx = 0, segNum = null) {
       }
 
       // 所有模型都失敗才顯示錯誤
-      appendSeg('', `⚠️ 轉錄失敗，請稍後再試`, null, segNum);
-      status('轉錄失敗', '');
+      appendSeg('', `⚠️ 轉錄失敗，請稍後再試`, null, segNum, true);
+      showToast('轉錄失敗，請稍後再試');
       return;
     }
 
@@ -905,7 +936,8 @@ async function sendToGemini(blob, modelIdx = 0, segNum = null) {
     status(`第 ${segNum ?? chunkIdx} 段完成`, 'rec');
 
   } catch (e) {
-    appendSeg('', `⚠️ 網路錯誤：${e.message}`, null, segNum);
+    appendSeg('', `⚠️ 網路錯誤：${e.message}`, null, segNum, true);
+    showToast(`網路錯誤：${e.message}`);
   }
 }
 
@@ -933,51 +965,59 @@ function deloopText(text) {
 // ── Append segment ─────────────────────────────────────────────────────────
 // segNum: when provided, buffers results and flushes in order (prevents
 // out-of-order display when multiple parallel API calls race to complete).
-function appendSeg(time, text, translation = null, segNum = null) {
+function appendSeg(time, text, translation = null, segNum = null, isError = false) {
   if (segNum !== null) {
-    segResultBuffer[segNum] = { time, text, translation };
+    segResultBuffer[segNum] = { time, text, translation, isError };
     while (segResultBuffer[nextDisplaySeg] !== undefined) {
       const r = segResultBuffer[nextDisplaySeg];
       delete segResultBuffer[nextDisplaySeg];
       nextDisplaySeg++;
-      _renderSeg(r.time, r.text, r.translation);
+      _renderSeg(r.time, r.text, r.translation, r.isError);
     }
   } else {
-    _renderSeg(time, text, translation);
+    _renderSeg(time, text, translation, isError);
   }
 }
 
-function _renderSeg(time, text, translation) {
-  sessionSegs.push({ time, text, translation });
+function _renderSeg(time, text, translation, isError = false) {
+  sessionSegs.push({ time, text, translation, isError });
 
   const area = document.getElementById('tarea');
   const empty = area.querySelector('.empty');
   if (empty) empty.remove();
 
-  // 同一次錄音的文字全部接在同一個文字區塊，不分段
-  let mainText = area.querySelector('.session-main');
-  if (!mainText) {
-    mainText = document.createElement('div');
-    mainText.className = 'session-main seg-text';
-    area.appendChild(mainText);
+  if (isError) {
+    // 錯誤訊息獨立顯示，與正常轉錄文字明顯區隔
+    const errBlock = document.createElement('div');
+    errBlock.className = 'seg-error';
+    errBlock.textContent = text;
+    area.appendChild(errBlock);
+  } else {
+    // 同一次錄音的文字全部接在同一個文字區塊，不分段
+    let mainText = area.querySelector('.session-main');
+    if (!mainText) {
+      mainText = document.createElement('div');
+      mainText.className = 'session-main seg-text';
+      area.appendChild(mainText);
+    }
+    mainText.textContent += (mainText.textContent ? '\n' : '') + text;
+
+    // 翻譯區塊仍逐段附加在文字區塊後
+    if (translation) {
+      const tBlock = document.createElement('div');
+      tBlock.className = 'seg-translation';
+      const lbl = document.createElement('div');
+      lbl.className = 'seg-translation-label';
+      lbl.textContent = document.getElementById('translate-to').value;
+      const tTxt = document.createElement('div');
+      tTxt.textContent = translation;
+      tBlock.appendChild(lbl);
+      tBlock.appendChild(tTxt);
+      area.appendChild(tBlock);
+    }
   }
-  mainText.textContent += (mainText.textContent ? '\n' : '') + text;
+
   scheduleAutosave();
-
-  // 翻譯區塊仍逐段附加在文字區塊後
-  if (translation) {
-    const tBlock = document.createElement('div');
-    tBlock.className = 'seg-translation';
-    const lbl = document.createElement('div');
-    lbl.className = 'seg-translation-label';
-    lbl.textContent = document.getElementById('translate-to').value;
-    const tTxt = document.createElement('div');
-    tTxt.textContent = translation;
-    tBlock.appendChild(lbl);
-    tBlock.appendChild(tTxt);
-    area.appendChild(tBlock);
-  }
-
   area.scrollTop = area.scrollHeight;
 }
 
@@ -1001,9 +1041,13 @@ function downloadTranscript() {
   let md = `# 逐字稿 ${today}\n\n`;
   sessionSegs.forEach((s, i) => {
     if (i > 0) md += '\n---\n\n';
-    if (s.time) md += `**${s.time}**\n\n`;
-    md += s.text + '\n';
-    if (s.translation) md += `\n> ${s.translation.replace(/\n/g, '\n> ')}\n`;
+    if (s.isError) {
+      md += `> ⚠️ [此段轉錄失敗，內容遺失]\n`;
+    } else {
+      if (s.time) md += `**${s.time}**\n\n`;
+      md += s.text + '\n';
+      if (s.translation) md += `\n> ${s.translation.replace(/\n/g, '\n> ')}\n`;
+    }
   });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([md], { type: 'text/markdown;charset=utf-8' }));
@@ -1075,5 +1119,6 @@ function blobToBase64(blob) {
   });
 }
 </script>
+<div id="toast"></div>
 </body>
 </html>
