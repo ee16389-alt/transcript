@@ -1134,6 +1134,10 @@ details[open] summary::before { transform: rotate(90deg); }
         <summary>❓ 常見問題 QA（點擊展開）</summary>
         <div class="sub-content">
           <div class="qa">
+            <b>Q：沒有聲音時會產生文字嗎？</b>
+            系統會先偵測每段音訊是否有明確語音；若未偵測到聲音，會顯示「此段未偵測到明確語音」，並略過 API 轉錄。
+          </div>
+          <div class="qa">
             <b>Q：為什麼轉出的文字沒有聲音？</b>
             請確認分享螢幕或分頁時，有勾選對話框左下角或下方的「共享音訊 / 分享系統聲音」核取方塊。
           </div>
@@ -1176,6 +1180,19 @@ let recordingTimer   = null;
 // ── Feature 2: timing state ────────────────────────────────────────────────
 let recordingStartMs = 0;   // Date.now() when beginRecording() was called
 let chunkStartMs     = 0;   // Date.now() when current chunk's recorder.start() was called
+let silenceAudioCtx  = null;
+let silenceAnalyser  = null;
+let silenceSource    = null;
+let silenceTimer     = null;
+let lastAudibleAt    = 0;
+let silenceWarned    = false;
+let chunkHadAudio    = false;
+let chunkAudioSamples = 0;
+
+const SILENCE_WARNING_MS = 15000;
+const SILENCE_RMS_THRESHOLD = 0.012;
+const SILENCE_PEAK_THRESHOLD = 0.08;
+const MIN_SILENCE_SAMPLES = 4;
 
 // ── Feature 3: API wait timer state ───────────────────────────────────────
 let _apiWaitTimer = null;
@@ -1908,8 +1925,75 @@ function _stopApiWait() {
   if (_apiWaitTimer) { clearInterval(_apiWaitTimer); _apiWaitTimer = null; }
 }
 
+// ── Silence monitor ────────────────────────────────────────────────────────
+function resetChunkAudioMonitor() {
+  chunkHadAudio = false;
+  chunkAudioSamples = 0;
+}
+
+function startSilenceMonitor(stream) {
+  stopSilenceMonitor();
+  resetChunkAudioMonitor();
+  lastAudibleAt = Date.now();
+  silenceWarned = false;
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    silenceAudioCtx = new AudioCtx();
+    silenceAnalyser = silenceAudioCtx.createAnalyser();
+    silenceAnalyser.fftSize = 2048;
+    silenceSource = silenceAudioCtx.createMediaStreamSource(stream);
+    silenceSource.connect(silenceAnalyser);
+    const data = new Uint8Array(silenceAnalyser.fftSize);
+    silenceTimer = setInterval(() => {
+      if (!silenceAnalyser || !isRecording) return;
+      silenceAnalyser.getByteTimeDomainData(data);
+      let sum = 0;
+      let peak = 0;
+      for (let i = 0; i < data.length; i++) {
+        const v = (data[i] - 128) / 128;
+        sum += v * v;
+        const abs = Math.abs(v);
+        if (abs > peak) peak = abs;
+      }
+      const rms = Math.sqrt(sum / data.length);
+      const audible = rms >= SILENCE_RMS_THRESHOLD || peak >= SILENCE_PEAK_THRESHOLD;
+      chunkAudioSamples++;
+      if (audible) {
+        chunkHadAudio = true;
+        lastAudibleAt = Date.now();
+        silenceWarned = false;
+      } else if (!silenceWarned && Date.now() - lastAudibleAt >= SILENCE_WARNING_MS) {
+        silenceWarned = true;
+        showInfoToast('未偵測到明顯聲音，請確認麥克風或分頁音訊是否已開啟。', 5000);
+      }
+    }, 500);
+  } catch (_) {
+    stopSilenceMonitor();
+  }
+}
+
+function stopSilenceMonitor() {
+  if (silenceTimer) {
+    clearInterval(silenceTimer);
+    silenceTimer = null;
+  }
+  try { if (silenceSource) silenceSource.disconnect(); } catch (_) {}
+  silenceSource = null;
+  silenceAnalyser = null;
+  if (silenceAudioCtx) {
+    try { silenceAudioCtx.close(); } catch (_) {}
+    silenceAudioCtx = null;
+  }
+}
+
+function shouldSkipSilentSegment() {
+  return chunkAudioSamples >= MIN_SILENCE_SAMPLES && !chunkHadAudio;
+}
+
 // ── Cleanup all active streams & audio context ─────────────────────────────
 function cleanupStreams() {
+  stopSilenceMonitor();
   if (activeStream) { activeStream.getTracks().forEach(t => t.stop()); activeStream = null; }
   extraStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
   extraStreams = [];
@@ -1955,6 +2039,7 @@ function beginRecording(stream) {
   startRecordingTimer();
   startBackupInterval();
   scheduleFileBackup();
+  startSilenceMonitor(stream);
   startRecorderOnStream(stream);
 }
 
@@ -2004,6 +2089,7 @@ function startRecorderOnStream(stream) {
       return;
     }
 
+    const silentSegment = shouldSkipSilentSegment();
     const blob = new Blob(pendingChunks, { type: recorder.mimeType || 'audio/webm' });
     pendingChunks = [];
     recordingSize = 0;
@@ -2019,7 +2105,22 @@ function startRecorderOnStream(stream) {
     // Auto-flush: restart recorder immediately — no need to wait for API response
     if (isRecording) {
       autoFlushing = false;
+      resetChunkAudioMonitor();
       startRecorderOnStream(stream);
+    }
+
+    if (silentSegment) {
+      appendSeg('', '（此段未偵測到明確語音）', null, mySegNum, true, segStartSec, segEndSec);
+      showInfoToast('此段未偵測到明確語音，已略過 API 轉錄。', 3500);
+      if (!isRecording && pendingApiCount === 0) {
+        cleanupStreams();
+        setBtns(false);
+        stopRecordingTimer();
+        status('收音已結束', 'done');
+        stopBackupInterval();
+        writeBackupFile('收音已結束');
+      }
+      return;
     }
 
     // Fire API call in background; cleanup only after all calls settle
