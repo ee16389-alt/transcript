@@ -295,6 +295,7 @@ details[open] summary::before { transform: rotate(90deg); }
       <button class="bp" id="btn-screen" onclick="startScreen()">🖥 只收分頁音訊</button>
       <button class="bp" id="btn-mixed"  onclick="startMixed()">🎙＋🖥 麥克風＋分頁</button>
       <button class="bd" id="btn-stop"   onclick="stopRecording()" disabled>■ 停止收音</button>
+      <button class="bs" id="btn-mute"   onclick="toggleMicMute()" style="display:none">🔇 靜音麥克風</button>
       <button class="bs" onclick="clearTranscript()">清除記錄</button>
       <button class="bg" onclick="downloadTranscript()">↓ 下載 Markdown</button>
     </div>
@@ -368,6 +369,7 @@ let recorder       = null;
 let activeStream   = null;
 let extraStreams    = [];   // raw mic/screen streams kept for cleanup in mixed mode
 let activeAudioCtx = null; // AudioContext used in mixed mode
+let micTrackRef    = null; // mic track reference for mute toggle
 let isRecording    = false;
 let pendingChunks  = [];
 let recordingSize  = 0;
@@ -397,6 +399,24 @@ function cleanupStreams() {
   extraStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
   extraStreams = [];
   if (activeAudioCtx) { activeAudioCtx.close(); activeAudioCtx = null; }
+  micTrackRef = null;
+  showMuteBtn(false);
+}
+
+// ── Mic mute toggle ────────────────────────────────────────────────────────
+function showMuteBtn(show) {
+  const btn = document.getElementById('btn-mute');
+  btn.style.display = show ? '' : 'none';
+  if (!show) { btn.textContent = '🔇 靜音麥克風'; btn.className = 'bs'; }
+}
+
+function toggleMicMute() {
+  if (!micTrackRef) return;
+  micTrackRef.enabled = !micTrackRef.enabled;
+  const muted = !micTrackRef.enabled;
+  const btn = document.getElementById('btn-mute');
+  btn.textContent = muted ? '🎙 解除靜音' : '🔇 靜音麥克風';
+  btn.className   = muted ? 'bd' : 'bs';
 }
 
 // ── Core recording logic ───────────────────────────────────────────────────
@@ -462,8 +482,10 @@ function startRecorderOnStream(stream) {
 async function startMic() {
   if (!validate()) return;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
     stream.getTracks().forEach(t => { t.onended = () => { if (isRecording) stopRecording(); }; });
+    micTrackRef = stream.getAudioTracks()[0];
+    showMuteBtn(true);
     status('錄音中（麥克風）', 'rec');
     beginRecording(stream);
   } catch (e) {
@@ -513,8 +535,8 @@ async function startScreen() {
 async function startMixed() {
   if (!validate()) return;
   try {
-    // 1. 取得麥克風
-    const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // 1. 取得麥克風（啟用降噪與回音消除）
+    const micStream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
 
     // 2. 嘗試取得分頁/螢幕音訊；取消或失敗就退回純麥克風
     let screenAudio = [];
@@ -542,6 +564,8 @@ async function startMixed() {
 
     extraStreams    = screenStream ? [micStream, screenStream] : [micStream];
     activeAudioCtx = ctx;
+    micTrackRef    = micStream.getAudioTracks()[0];
+    showMuteBtn(true);
 
     const label = screenAudio.length
       ? '錄音中（麥克風 ＋ 分頁/螢幕）'
