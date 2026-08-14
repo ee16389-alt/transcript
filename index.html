@@ -309,7 +309,7 @@ details[open] summary::before { transform: rotate(90deg); }
       </div>
       <div class="full">
         <label>自動轉檔大小（超過後送出轉逐字稿，再繼續錄音）</label>
-        <select id="chunk-mb">
+        <select id="chunk-mb" onchange="updateQuotaHint()">
           <option value="3">3 MB — 約 7–10 分鐘</option>
           <option value="5">5 MB — 約 12–15 分鐘</option>
           <option value="10">10 MB — 約 25–30 分鐘</option>
@@ -321,6 +321,7 @@ details[open] summary::before { transform: rotate(90deg); }
           Gemini API 單次音訊上限約 20 MB，建議不超過 18 MB。
           錄音未超過此大小則按停止時才呼叫一次 API。
         </div>
+        <div id="api-quota-hint" style="font-size:.75rem;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-bdr);border-radius:var(--r-base);padding:.5rem .75rem;margin-top:.5rem;line-height:1.6;"></div>
       </div>
     </div>
   </div>
@@ -970,6 +971,23 @@ function downloadTranscript() {
   URL.revokeObjectURL(a.href);
   finishSession();
 }
+
+// ── API quota hint (動態依 MB 設定更新) ────────────────────────────────────
+const MB_MIN_MAP = { '3': 8.5, '5': 13.5, '10': 27.5, '15': 41, '18': 50 };
+const FREE_RPD   = 500; // gemini-3.1-flash-lite 免費每日呼叫上限
+
+function updateQuotaHint() {
+  const mb         = document.getElementById('chunk-mb').value;
+  const minPerCall = MB_MIN_MAP[mb] || 50;
+  const totalHrs   = Math.floor(FREE_RPD * minPerCall / 60);
+  const callsPerHr = Math.ceil(60 / minPerCall);
+  document.getElementById('api-quota-hint').textContent =
+    `📊 免費額度試算：每日上限 ${FREE_RPD} 次 API 呼叫。` +
+    `以 ${mb} MB 設定，每次錄音約 ${Math.round(minPerCall)} 分鐘才呼叫一次；` +
+    `每小時最多呼叫 ${callsPerHr} 次，每日可轉錄約 ${totalHrs} 小時，一般使用不會用完。` +
+    `（超過限制時系統會自動切換備用模型，不會直接報錯中斷。）`;
+}
+updateQuotaHint(); // 頁面載入時立即顯示
 
 // ── IndexedDB init on page load ────────────────────────────────────────────
 (async function initIDB() {
