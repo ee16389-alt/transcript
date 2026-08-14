@@ -242,6 +242,34 @@ button:active:not(:disabled) { transform: translateY(0); }
   font-size: .65rem; font-weight: 700; color: var(--accent);
   text-transform: uppercase; letter-spacing: .06em; margin-bottom: .2rem;
 }
+.recording-session {
+  padding: 1rem 0;
+}
+.recording-session:first-child { padding-top: 0; }
+.recording-session + .recording-session {
+  border-top: 1px solid var(--border);
+  margin-top: 1rem;
+}
+.recording-session-head {
+  margin-bottom: .85rem;
+}
+.recording-session-title {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--fg);
+  line-height: 1.3;
+}
+.recording-session-meta {
+  margin-top: .25rem;
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.recording-session-body {
+  display: grid;
+  gap: .65rem;
+}
 .divider { border: none; border-top: 1px solid var(--border); margin: .75rem 0; }
 
 /* Error segment */
@@ -1036,6 +1064,8 @@ let pendingChunks  = [];
 let recordingSize  = 0;
 let autoFlushing   = false;
 let sessionSegs    = [];
+let recordingSessions = [];
+let currentRecordingSession = null;
 let chunkIdx       = 0;
 let pendingApiCount  = 0;   // in-flight Gemini API calls
 let nextDisplaySeg   = 1;   // next segment number to render (for ordering)
@@ -1131,6 +1161,7 @@ function scheduleAutosave() {
     try {
       await idbPut({
         id:        currentSessionId,
+        recordingSessions,
         segs:      sessionSegs,
         mode:      currentMode,
         updatedAt: Date.now(),
@@ -1148,27 +1179,166 @@ async function finishSession() {
   try { await idbDelete(currentSessionId); } catch (_) {}
 }
 
+function formatSessionClock(ts) {
+  if (!ts) return '進行中';
+  return new Date(ts).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatSessionDuration(ms) {
+  if (!ms || ms < 0) return '尚未結束';
+  const totalMin = Math.max(1, Math.round(ms / 60000));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h && m) return `${h} 小時 ${m} 分鐘`;
+  if (h) return `${h} 小時`;
+  return `${m} 分鐘`;
+}
+
+function displayModeLabel(mode) {
+  if (mode === '麥克風') return '🎙 僅收麥克風';
+  if (mode === '分頁音訊') return '🖥 僅收分頁音訊';
+  if (mode === '麥克風＋分頁') return '🎙＋🖥 麥克風＋分頁音訊';
+  return mode || '收音模式未記錄';
+}
+
+function sessionDuration(session) {
+  if (session.duration != null) return session.duration;
+  if (session.startedAt && session.stoppedAt) return session.stoppedAt - session.startedAt;
+  return null;
+}
+
+function ensureTranscriptAreaReady() {
+  const area = document.getElementById('tarea');
+  const empty = area.querySelector('.empty');
+  if (empty) empty.remove();
+  return area;
+}
+
+function createRecordingSession(startedAt = Date.now()) {
+  const session = {
+    id: `rec_${startedAt}_${recordingSessions.length + 1}`,
+    startedAt,
+    stoppedAt: null,
+    mode: currentMode,
+    duration: null,
+    segments: [],
+  };
+  recordingSessions.push(session);
+  currentRecordingSession = session;
+  recordingStartMs = startedAt;
+  chunkStartMs = startedAt;
+  updateRecordingTimer();
+  renderRecordingSessionShell(session);
+  scheduleAutosave();
+  return session;
+}
+
+function markCurrentRecordingSessionStopped(stoppedAt = Date.now()) {
+  if (!currentRecordingSession || currentRecordingSession.stoppedAt) return;
+  currentRecordingSession.stoppedAt = stoppedAt;
+  currentRecordingSession.duration = stoppedAt - currentRecordingSession.startedAt;
+  updateRecordingSessionHeader(currentRecordingSession);
+  scheduleAutosave();
+  scheduleFileBackup();
+}
+
+function renderRecordingSessionShell(session) {
+  const area = ensureTranscriptAreaReady();
+  let el = document.getElementById(session.id);
+  if (el) return el;
+
+  el = document.createElement('section');
+  el.className = 'recording-session';
+  el.id = session.id;
+
+  const head = document.createElement('div');
+  head.className = 'recording-session-head';
+
+  const title = document.createElement('div');
+  title.className = 'recording-session-title';
+
+  const meta = document.createElement('div');
+  meta.className = 'recording-session-meta';
+
+  const body = document.createElement('div');
+  body.className = 'recording-session-body';
+
+  head.appendChild(title);
+  head.appendChild(meta);
+  el.appendChild(head);
+  el.appendChild(body);
+  area.appendChild(el);
+  updateRecordingSessionHeader(session);
+  return el;
+}
+
+function updateRecordingSessionHeader(session) {
+  const el = document.getElementById(session.id);
+  if (!el) return;
+  const idx = recordingSessions.indexOf(session) + 1;
+  const title = el.querySelector('.recording-session-title');
+  const meta = el.querySelector('.recording-session-meta');
+  if (title) title.textContent = `錄音紀錄 ${idx}`;
+  if (meta) {
+    const start = formatSessionClock(session.startedAt);
+    const end = session.stoppedAt ? formatSessionClock(session.stoppedAt) : '進行中';
+    const duration = formatSessionDuration(sessionDuration(session));
+    meta.textContent = `${start}–${end} · ${duration} · ${displayModeLabel(session.mode)}`;
+  }
+}
+
+function renderAllRecordingSessions() {
+  const area = document.getElementById('tarea');
+  area.innerHTML = '';
+  if (!recordingSessions.length) {
+    area.innerHTML = '<div class="empty">開始收音後，轉錄完成的內容會陸續顯示在這裡</div>';
+    return;
+  }
+
+  const previousCurrent = currentRecordingSession;
+  sessionSegs = [];
+  recordingSessions.forEach(session => {
+    renderRecordingSessionShell(session);
+    const recoveredSegments = (session.segments || []).slice();
+    session.segments = [];
+    recoveredSegments.forEach(s => _renderSeg(s.time, s.text, s.translation, s.isError, s.startSec, s.endSec, session));
+    updateRecordingSessionHeader(session);
+  });
+  currentRecordingSession = previousCurrent;
+}
+
 // ── Recover / discard ─────────────────────────────────────────────────────
 async function recoverSession() {
   document.getElementById('recover-bar').classList.remove('show');
   if (!recoverCandidates.length) return;
   const target = recoverCandidates[0];
-  sessionSegs = target.segs || [];
-  chunkIdx    = sessionSegs.length;
+  recordingSessions = Array.isArray(target.recordingSessions)
+    ? target.recordingSessions.map((s, i) => ({
+        id: s.id || `rec_recovered_${i + 1}`,
+        startedAt: s.startedAt || target.updatedAt || Date.now(),
+        stoppedAt: s.stoppedAt || null,
+        mode: s.mode || target.mode || '',
+        duration: s.duration ?? (s.startedAt && s.stoppedAt ? s.stoppedAt - s.startedAt : null),
+        segments: Array.isArray(s.segments) ? s.segments : [],
+      }))
+    : [];
+  if (!recordingSessions.length && Array.isArray(target.segs) && target.segs.length) {
+    recordingSessions = [{
+      id: `rec_recovered_${target.updatedAt || Date.now()}`,
+      startedAt: target.updatedAt || Date.now(),
+      stoppedAt: target.updatedAt || null,
+      mode: target.mode || '',
+      duration: null,
+      segments: target.segs,
+    }];
+  }
+  sessionSegs = [];
+  chunkIdx    = (target.segs || []).length;
   currentSessionId = target.id;
   currentMode      = target.mode || '';
+  currentRecordingSession = null;
 
-  const area = document.getElementById('tarea');
-  area.innerHTML = '';
-  if (sessionSegs.length) {
-    // Re-render each segment via _renderSeg; first clear so _renderSeg's push
-    // doesn't double-add (sessionSegs was just loaded from IndexedDB above)
-    const recovered = sessionSegs.slice();
-    sessionSegs = [];
-    recovered.forEach(s => _renderSeg(s.time, s.text, s.translation, s.isError, s.startSec, s.endSec));
-  } else {
-    area.innerHTML = '<div class="empty">開始收音後，轉錄完成的內容會陸續顯示在這裡</div>';
-  }
+  renderAllRecordingSessions();
   status('已復原上次未完成的逐字稿', 'done');
   updateExportButtons();
   scheduleFileBackup();
@@ -1210,22 +1380,37 @@ function buildTranscriptMarkdown(stateLabel = '') {
     '',
   ];
 
-  if (!sessionSegs.length) {
+  const sessions = recordingSessions.length
+    ? recordingSessions
+    : (sessionSegs.length ? [{
+        id: 'legacy',
+        startedAt: null,
+        stoppedAt: null,
+        mode: currentMode,
+        duration: null,
+        segments: sessionSegs,
+      }] : []);
+
+  if (!sessions.length) {
     lines.push('（尚無逐字稿內容）', '');
     return lines.join('\n');
   }
 
-  sessionSegs.forEach((s, i) => {
+  sessions.forEach((session, i) => {
     if (i > 0) lines.push('---', '');
-    if (s.isError) {
-      lines.push('> ⚠️ [此段轉錄失敗，內容遺失]', '');
-      return;
-    }
-    if (s.time) lines.push(`**${s.time}**`, '');
-    lines.push(s.text || '', '');
-    if (s.translation) {
-      lines.push(`> ${s.translation.replace(/\n/g, '\n> ')}`, '');
-    }
+    lines.push(`## 錄音紀錄 ${i + 1}`, '');
+    lines.push(`${formatSessionClock(session.startedAt)}–${session.stoppedAt ? formatSessionClock(session.stoppedAt) : '進行中'} · ${formatSessionDuration(sessionDuration(session))} · ${displayModeLabel(session.mode)}`, '');
+    (session.segments || []).forEach(s => {
+      if (s.isError) {
+        lines.push('> ⚠️ [此段轉錄失敗，內容遺失]', '');
+        return;
+      }
+      if (s.time) lines.push(`**${s.time}**`, '');
+      lines.push(s.text || '', '');
+      if (s.translation) {
+        lines.push(`> ${s.translation.replace(/\n/g, '\n> ')}`, '');
+      }
+    });
   });
   return lines.join('\n');
 }
@@ -1437,6 +1622,24 @@ function transcriptPlainText() {
     .join('\n\n');
 }
 
+function buildTranscriptText() {
+  const sessions = recordingSessions.length
+    ? recordingSessions
+    : (sessionSegs.length ? [{ startedAt: null, stoppedAt: null, mode: currentMode, duration: null, segments: sessionSegs }] : []);
+  return sessions.map((session, i) => {
+    const lines = [
+      `錄音紀錄 ${i + 1}`,
+      `${formatSessionClock(session.startedAt)}–${session.stoppedAt ? formatSessionClock(session.stoppedAt) : '進行中'} · ${formatSessionDuration(sessionDuration(session))} · ${displayModeLabel(session.mode)}`,
+      '',
+    ];
+    (session.segments || []).filter(s => !s.isError).forEach(s => {
+      if (s.text) lines.push(s.text, '');
+      if (s.translation) lines.push(s.translation, '');
+    });
+    return lines.join('\n').trim();
+  }).filter(Boolean).join('\n\n---\n\n');
+}
+
 async function copyTranscript() {
   const text = transcriptPlainText();
   if (!text) {
@@ -1535,7 +1738,8 @@ function beginRecording(stream) {
   pendingApiCount  = 0;
   nextDisplaySeg   = 1;
   segResultBuffer  = {};
-  currentSessionId = `session_${Date.now()}`;
+  currentRecordingSession = null;
+  if (!currentSessionId) currentSessionId = `session_${Date.now()}`;
   recordingStartMs = Date.now();
   chunkStartMs     = Date.now();
   setRecordingSizeLabel('');
@@ -1577,7 +1781,6 @@ function startRecorderOnStream(stream) {
         status('收音已結束', 'done');
         stopBackupInterval();
         writeBackupFile('收音已結束');
-        finishSession();
       }
       return;
     }
@@ -1614,12 +1817,12 @@ function startRecorderOnStream(stream) {
         status('收音已結束', 'done');
         stopBackupInterval();
         writeBackupFile('收音已結束');
-        finishSession();
       }
     });
   };
 
   recorder.start(5000); // 每 5 秒收集一次資料以監控大小
+  if (!currentRecordingSession) createRecordingSession(Date.now());
 }
 
 // ── Start mic ──────────────────────────────────────────────────────────────
@@ -1712,6 +1915,7 @@ async function startMixed() {
 
 // ── Stop ───────────────────────────────────────────────────────────────────
 function stopRecording() {
+  markCurrentRecordingSessionStopped(Date.now());
   isRecording = false;
   // 立刻鎖住所有按鈕與設定欄位，防止重複按
   ['btn-mic', 'btn-screen', 'btn-mixed', 'btn-start', 'btn-stop'].forEach(id =>
@@ -1733,7 +1937,6 @@ function stopRecording() {
     status('收音已結束', 'done');
     stopBackupInterval();
     writeBackupFile('收音已結束');
-    finishSession();
   }
 }
 
@@ -1897,26 +2100,30 @@ function appendSeg(time, text, translation = null, segNum = null, isError = fals
   }
 }
 
-function _renderSeg(time, text, translation, isError = false, startSec = null, endSec = null) {
-  sessionSegs.push({ time, text, translation, isError, startSec, endSec });
+function _renderSeg(time, text, translation, isError = false, startSec = null, endSec = null, targetSession = null) {
+  const seg = { time, text, translation, isError, startSec, endSec };
+  sessionSegs.push(seg);
 
-  const area = document.getElementById('tarea');
-  const empty = area.querySelector('.empty');
-  if (empty) empty.remove();
+  const recSession = targetSession || currentRecordingSession || createRecordingSession(Date.now());
+  if (!recSession.segments) recSession.segments = [];
+  recSession.segments.push(seg);
+  const sessionEl = renderRecordingSessionShell(recSession);
+  const body = sessionEl.querySelector('.recording-session-body');
+  const area = ensureTranscriptAreaReady();
 
   if (isError) {
     // 錯誤訊息獨立顯示，與正常轉錄文字明顯區隔
     const errBlock = document.createElement('div');
     errBlock.className = 'seg-error seg-fadein';
     errBlock.textContent = text;
-    area.appendChild(errBlock);
+    body.appendChild(errBlock);
   } else {
     // 同一次錄音的文字全部接在同一個文字區塊，不分段
-    let mainText = area.querySelector('.session-main');
+    let mainText = body.querySelector('.session-main');
     if (!mainText) {
       mainText = document.createElement('div');
       mainText.className = 'session-main seg-text';
-      area.appendChild(mainText);
+      body.appendChild(mainText);
     }
     // Append as a fade-in span child
     const span = document.createElement('span');
@@ -1935,7 +2142,7 @@ function _renderSeg(time, text, translation, isError = false, startSec = null, e
       tTxt.textContent = translation;
       tBlock.appendChild(lbl);
       tBlock.appendChild(tTxt);
-      area.appendChild(tBlock);
+      body.appendChild(tBlock);
     }
   }
 
@@ -1951,6 +2158,8 @@ function _renderSeg(time, text, translation, isError = false, startSec = null, e
 function clearTranscript() {
   finishSession();
   sessionSegs      = [];
+  recordingSessions = [];
+  currentRecordingSession = null;
   chunkIdx         = 0;
   nextDisplaySeg   = 1;
   segResultBuffer  = {};
@@ -1971,7 +2180,6 @@ function downloadTranscript() {
   a.download = `逐字稿_${today}.md`;
   a.click();
   URL.revokeObjectURL(a.href);
-  finishSession();
 }
 
 // ── Download SRT ───────────────────────────────────────────────────────────
@@ -2002,7 +2210,7 @@ function downloadTXT() {
   const segs = sessionSegs.filter(s => !s.isError);
   if (!segs.length) { status('⚠️ 尚無內容可下載'); return; }
   const today = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
-  const txt = segs.map(s => s.text).join('\n');
+  const txt = buildTranscriptText();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain;charset=utf-8' }));
   a.download = `逐字稿_${today}.txt`;
@@ -2041,7 +2249,9 @@ document.addEventListener('keydown', e => {
       .sort((a, b) => b.updatedAt - a.updatedAt);
     if (recoverCandidates.length) {
       const s = recoverCandidates[0];
-      const segs = s.segs || [];
+      const segs = Array.isArray(s.recordingSessions)
+        ? s.recordingSessions.flatMap(rs => rs.segments || [])
+        : (s.segs || []);
       const wordCount = segs.filter(sg => !sg.isError).reduce((n, sg) => n + (sg.text || '').replace(/\s/g,'').length, 0);
       const minAgo = Math.round((Date.now() - s.updatedAt) / 60000);
       const timeLabel = minAgo < 1 ? '剛才' : minAgo < 60 ? `${minAgo} 分鐘前` : `${Math.round(minAgo/60)} 小時前`;
