@@ -557,7 +557,7 @@ details[open] summary::before { transform: rotate(90deg); }
 .mode-card {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   min-height: 136px;
   padding: 1rem 1.05rem;
   text-align: left;
@@ -568,10 +568,15 @@ details[open] summary::before { transform: rotate(90deg); }
   box-shadow: var(--sh-sm);
   width: 100%;
 }
-.mode-card b { display: block; font-size: 1.05rem; line-height: 1.35; }
+.mode-card b {
+  display: block;
+  min-height: 2.9em;
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
 .mode-card span {
   display: block;
-  margin-top: .45rem;
+  margin-top: .55rem;
   color: var(--muted);
   font-size: .86rem;
   line-height: 1.5;
@@ -729,7 +734,7 @@ details[open] summary::before { transform: rotate(90deg); }
   }
   .mode-grid { grid-template-columns: 1fr; gap: .65rem; }
   .mode-card { min-height: 72px; padding: .8rem .9rem; }
-  .mode-card b { font-size: .95rem; }
+  .mode-card b { min-height: 0; font-size: .95rem; }
   .mode-card span { font-size: .8rem; margin-top: .25rem; }
   .toolbar-row, .record-actions { align-items: stretch; width: 100%; }
   .record-actions { grid-template-columns: 1fr 1fr; gap: .6rem; }
