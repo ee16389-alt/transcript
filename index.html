@@ -868,9 +868,9 @@ details[open] summary::before { transform: rotate(90deg); }
 
 <!-- Recovery bar -->
 <div id="recover-bar">
-  <span id="recover-msg">偵測到上次未完成的錄音，是否要復原？</span>
+  <span id="recover-msg">偵測到上次未完成的錄音，可先存成備份檔。</span>
   <div class="recover-btns">
-    <button class="bp" onclick="recoverSession()">復原</button>
+    <button class="bp" onclick="recoverSession()">存成備份</button>
     <button class="bs" onclick="discardSession()">捨棄</button>
   </div>
 </div>
@@ -1314,7 +1314,15 @@ async function recoverSession() {
   document.getElementById('recover-bar').classList.remove('show');
   if (!recoverCandidates.length) return;
   const target = recoverCandidates[0];
-  recordingSessions = Array.isArray(target.recordingSessions)
+  if (!backupDirHandle) {
+    await chooseBackupFolder();
+    if (!backupDirHandle) {
+      document.getElementById('recover-bar').classList.add('show');
+      return;
+    }
+  }
+
+  const recoveredSessions = Array.isArray(target.recordingSessions)
     ? target.recordingSessions.map((s, i) => ({
         id: s.id || `rec_recovered_${i + 1}`,
         startedAt: s.startedAt || target.updatedAt || Date.now(),
@@ -1325,8 +1333,8 @@ async function recoverSession() {
         segments: Array.isArray(s.segments) ? s.segments : [],
       }))
     : [];
-  if (!recordingSessions.length && Array.isArray(target.segs) && target.segs.length) {
-    recordingSessions = [{
+  if (!recoveredSessions.length && Array.isArray(target.segs) && target.segs.length) {
+    recoveredSessions.push({
       id: `rec_recovered_${target.updatedAt || Date.now()}`,
       startedAt: target.updatedAt || Date.now(),
       stoppedAt: target.updatedAt || null,
@@ -1334,21 +1342,25 @@ async function recoverSession() {
       duration: null,
       initialFeedbackFlushed: true,
       segments: target.segs,
-    }];
+    });
   }
-  sessionSegs = [];
-  chunkIdx    = (target.segs || []).length;
-  currentSessionId = target.id;
-  currentMode      = target.mode || '';
-  currentRecordingSession = null;
 
-  renderAllRecordingSessions();
-  status('已復原上次未完成的逐字稿', 'done');
-  updateExportButtons();
-  scheduleFileBackup();
-  // discard the other candidates
-  for (const s of recoverCandidates.slice(1)) {
-    try { await idbDelete(s.id); } catch (_) {}
+  try {
+    for (let i = 0; i < recoveredSessions.length; i++) {
+      const session = recoveredSessions[i];
+      const fileName = `復原_${backupFileNameForSession(session, i + 1)}`;
+      const fileHandle = await backupDirHandle.getFileHandle(fileName, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(buildRecordingSessionMarkdown(session, '復原備份', i + 1));
+      await writable.close();
+    }
+    await idbDelete(target.id);
+    recoverCandidates = recoverCandidates.slice(1);
+    status('已將上次未完成的逐字稿存成備份檔', 'done');
+    setBackupStatus(`已存成復原備份，上次備份：${formatBackupTime()}`);
+  } catch (e) {
+    setBackupStatus(`復原備份失敗，請重新選擇資料夾：${e.message}`, true);
+    document.getElementById('recover-bar').classList.add('show');
   }
 }
 
@@ -1423,8 +1435,8 @@ function buildTranscriptMarkdown(stateLabel = '') {
   return lines.join('\n');
 }
 
-function buildRecordingSessionMarkdown(session, stateLabel = '') {
-  const idx = Math.max(1, recordingSessions.indexOf(session) + 1);
+function buildRecordingSessionMarkdown(session, stateLabel = '', explicitIndex = null) {
+  const idx = explicitIndex || Math.max(1, recordingSessions.indexOf(session) + 1);
   const lines = [
     `# 錄音紀錄 ${idx}`,
     '',
@@ -2308,7 +2320,7 @@ document.addEventListener('keydown', e => {
       const minAgo = Math.round((Date.now() - s.updatedAt) / 60000);
       const timeLabel = minAgo < 1 ? '剛才' : minAgo < 60 ? `${minAgo} 分鐘前` : `${Math.round(minAgo/60)} 小時前`;
       document.getElementById('recover-msg').textContent =
-        `偵測到未完成的逐字稿 — 約 ${wordCount} 字，收音：${s.mode || '未知'}，最後更新 ${timeLabel}`;
+        `偵測到未完成的逐字稿 — 約 ${wordCount} 字，最後更新 ${timeLabel}。可存成備份檔，不會覆蓋目前畫面。`;
       document.getElementById('recover-bar').classList.add('show');
     }
   } catch (_) {
