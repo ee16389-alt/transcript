@@ -382,6 +382,9 @@ function status(msg, cls) {
 function setBtns(recording) {
   ['btn-mic', 'btn-screen'].forEach(id => document.getElementById(id).disabled = recording);
   document.getElementById('btn-stop').disabled = !recording;
+  ['api-key', 'language', 'model', 'translate-to'].forEach(id =>
+    document.getElementById(id).disabled = recording
+  );
 }
 
 // ── Core recording logic ───────────────────────────────────────────────────
@@ -448,6 +451,7 @@ async function startMic() {
   if (!validate()) return;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(t => { t.onended = () => { if (isRecording) stopRecording(); }; });
     status('錄音中（麥克風）', 'rec');
     beginRecording(stream);
   } catch (e) {
@@ -466,6 +470,7 @@ async function startScreen() {
       status('⚠️ 未取得音訊。請選「分頁（Tab）」並勾選「共享分頁音訊」。');
       return;
     }
+    audioTracks.forEach(t => { t.onended = () => { if (isRecording) stopRecording(); }; });
     status('錄音中（分頁/螢幕）', 'rec');
     beginRecording(new MediaStream(audioTracks));
   } catch (e) {
@@ -476,8 +481,11 @@ async function startScreen() {
 // ── Stop ───────────────────────────────────────────────────────────────────
 function stopRecording() {
   isRecording = false;
-  // 立刻鎖住所有按鈕，防止重複按
+  // 立刻鎖住所有按鈕與設定欄位，防止重複按
   ['btn-mic', 'btn-screen', 'btn-stop'].forEach(id =>
+    document.getElementById(id).disabled = true
+  );
+  ['api-key', 'language', 'model', 'translate-to'].forEach(id =>
     document.getElementById(id).disabled = true
   );
   if (recorder && recorder.state === 'recording') {
