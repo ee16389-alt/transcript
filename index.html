@@ -920,12 +920,12 @@ details[open] summary::before { transform: rotate(90deg); }
             <button class="bd" id="btn-stop"   onclick="stopRecording()" disabled>■ 停止收音</button>
             <button class="bw" id="btn-mute"   onclick="toggleMicMute()" style="display:none">🔇 靜音麥克風</button>
             <button class="bs" onclick="clearTranscript()">清除記錄</button>
-            <button class="bs" id="btn-backup" onclick="chooseBackupFile()">💾 選擇備份檔</button>
+            <button class="bs" id="btn-backup" onclick="chooseBackupFolder()">💾 選擇備份資料夾</button>
           </div>
         </div>
       </div>
       <div id="backup-status" style="font-size:.75rem;color:var(--muted);margin-top:.45rem;line-height:1.5;">
-        尚未啟用本機備份
+        尚未啟用本機備份；啟用後每場錄音會自動建立獨立備份檔
       </div>
     </div>
 
@@ -1090,7 +1090,7 @@ let autosaveTimer    = null;
 let recoverCandidates = [];   // unfinished sessions found on load
 
 // ── Local file backup state ───────────────────────────────────────────────
-let backupFileHandle = null;  // File System Access API handle, chosen by user
+let backupDirHandle  = null;  // File System Access API directory handle, chosen by user
 let backupTimer      = null;
 let backupInterval   = null;
 let backupWriting    = false;
@@ -1231,6 +1231,7 @@ function createRecordingSession(startedAt = Date.now()) {
   updateRecordingTimer();
   renderRecordingSessionShell(session);
   scheduleAutosave();
+  scheduleFileBackup();
   return session;
 }
 
@@ -1360,10 +1361,14 @@ async function discardSession() {
 }
 
 // ── Local Markdown backup ─────────────────────────────────────────────────
-function backupFileName() {
-  const now = new Date();
+function timestampForFile(ts = Date.now()) {
+  const now = new Date(ts);
   const pad = n => String(n).padStart(2, '0');
-  return `逐字稿_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.md`;
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+}
+
+function backupFileNameForSession(session, index = recordingSessions.indexOf(session) + 1) {
+  return `逐字稿_${timestampForFile(session?.startedAt || Date.now())}_錄音紀錄${Math.max(1, index)}.md`;
 }
 
 function formatBackupTime(date = new Date()) {
@@ -1418,6 +1423,39 @@ function buildTranscriptMarkdown(stateLabel = '') {
   return lines.join('\n');
 }
 
+function buildRecordingSessionMarkdown(session, stateLabel = '') {
+  const idx = Math.max(1, recordingSessions.indexOf(session) + 1);
+  const lines = [
+    `# 錄音紀錄 ${idx}`,
+    '',
+    `備份狀態：${stateLabel || (isRecording ? '錄音中' : '已停止')}`,
+    `最後備份：${formatBackupTime()}`,
+    `${formatSessionClock(session.startedAt)}–${session.stoppedAt ? formatSessionClock(session.stoppedAt) : '進行中'} · ${formatSessionDuration(sessionDuration(session))} · ${displayModeLabel(session.mode)}`,
+    '',
+    '---',
+    '',
+  ];
+
+  const segs = session.segments || [];
+  if (!segs.length) {
+    lines.push('（尚無逐字稿內容）', '');
+    return lines.join('\n');
+  }
+
+  segs.forEach(s => {
+    if (s.isError) {
+      lines.push('> ⚠️ [此段轉錄失敗，內容遺失]', '');
+      return;
+    }
+    if (s.time) lines.push(`**${s.time}**`, '');
+    lines.push(s.text || '', '');
+    if (s.translation) {
+      lines.push(`> ${s.translation.replace(/\n/g, '\n> ')}`, '');
+    }
+  });
+  return lines.join('\n');
+}
+
 function setBackupStatus(text, isError = false) {
   const el = document.getElementById('backup-status');
   if (!el) return;
@@ -1425,41 +1463,37 @@ function setBackupStatus(text, isError = false) {
   el.style.color = isError ? 'var(--danger)' : 'var(--muted)';
 }
 
-async function chooseBackupFile() {
-  if (!window.showSaveFilePicker || !window.isSecureContext) {
-    setBackupStatus('此瀏覽器不支援自動寫入本機檔案；請改用 Chrome / Edge。', true);
-    showToast('此瀏覽器不支援本機備份檔');
+async function chooseBackupFolder() {
+  if (!window.showDirectoryPicker || !window.isSecureContext) {
+    setBackupStatus('此瀏覽器不支援自動寫入本機資料夾；請改用 Chrome / Edge。', true);
+    showToast('此瀏覽器不支援本機備份資料夾');
     return;
   }
   try {
-    backupFileHandle = await window.showSaveFilePicker({
-      suggestedName: backupFileName(),
-      types: [{
-        description: 'Markdown 逐字稿',
-        accept: { 'text/markdown': ['.md'], 'text/plain': ['.txt'] },
-      }],
-    });
-    setBackupStatus('已啟用本機備份，會自動覆寫你選擇的檔案');
-    await writeBackupFile('備份已啟用');
+    backupDirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    setBackupStatus('已啟用本機備份；每場錄音會在此資料夾建立獨立 Markdown 檔');
+    if (currentRecordingSession) await writeBackupFile('備份已啟用');
     startBackupInterval();
   } catch (e) {
     if (e.name === 'AbortError') {
       setBackupStatus('尚未啟用本機備份');
       return;
     }
-    setBackupStatus(`備份檔設定失敗：${e.message}`, true);
+    setBackupStatus(`備份資料夾設定失敗：${e.message}`, true);
   }
 }
 
+const chooseBackupFile = chooseBackupFolder;
+
 function scheduleFileBackup() {
-  if (!backupFileHandle) return;
+  if (!backupDirHandle || !currentRecordingSession) return;
   backupDirty = true;
   clearTimeout(backupTimer);
   backupTimer = setTimeout(() => writeBackupFile(), 1200);
 }
 
 async function writeBackupFile(stateLabel = '') {
-  if (!backupFileHandle) return;
+  if (!backupDirHandle || !currentRecordingSession) return;
   if (backupWriting) {
     backupDirty = true;
     return;
@@ -1467,13 +1501,17 @@ async function writeBackupFile(stateLabel = '') {
   backupWriting = true;
   backupDirty = false;
   try {
-    const writable = await backupFileHandle.createWritable();
-    await writable.write(buildTranscriptMarkdown(stateLabel));
+    if (!currentRecordingSession.backupFileName) {
+      currentRecordingSession.backupFileName = backupFileNameForSession(currentRecordingSession);
+    }
+    const fileHandle = await backupDirHandle.getFileHandle(currentRecordingSession.backupFileName, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(buildRecordingSessionMarkdown(currentRecordingSession, stateLabel));
     await writable.close();
-    setBackupStatus(`已啟用本機備份，上次備份：${formatBackupTime()}`);
+    setBackupStatus(`已啟用本機備份，${currentRecordingSession.backupFileName} 上次備份：${formatBackupTime()}`);
   } catch (e) {
-    setBackupStatus(`備份失敗，請重新選擇檔案：${e.message}`, true);
-    backupFileHandle = null;
+    setBackupStatus(`備份失敗，請重新選擇資料夾：${e.message}`, true);
+    backupDirHandle = null;
     stopBackupInterval();
   } finally {
     backupWriting = false;
@@ -1482,9 +1520,9 @@ async function writeBackupFile(stateLabel = '') {
 }
 
 function startBackupInterval() {
-  if (!backupFileHandle || backupInterval) return;
+  if (!backupDirHandle || backupInterval) return;
   backupInterval = setInterval(() => {
-    if (backupFileHandle && (isRecording || pendingApiCount > 0)) writeBackupFile();
+    if (backupDirHandle && currentRecordingSession && (isRecording || pendingApiCount > 0)) writeBackupFile();
   }, 30000);
 }
 
