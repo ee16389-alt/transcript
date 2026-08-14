@@ -291,9 +291,10 @@ details[open] summary::before { transform: rotate(90deg); }
   <!-- Controls -->
   <div class="card">
     <div class="btn-row">
-      <button class="bp" id="btn-mic"   onclick="startMic()">🎙 只收麥克風</button>
-      <button class="bp" id="btn-mixed" onclick="startMixed()">🎙＋🖥 麥克風＋分頁</button>
-      <button class="bd" id="btn-stop"  onclick="stopRecording()" disabled>■ 停止收音</button>
+      <button class="bp" id="btn-mic"    onclick="startMic()">🎙 只收麥克風</button>
+      <button class="bp" id="btn-screen" onclick="startScreen()">🖥 只收分頁音訊</button>
+      <button class="bp" id="btn-mixed"  onclick="startMixed()">🎙＋🖥 麥克風＋分頁</button>
+      <button class="bd" id="btn-stop"   onclick="stopRecording()" disabled>■ 停止收音</button>
       <button class="bs" onclick="clearTranscript()">清除記錄</button>
       <button class="bg" onclick="downloadTranscript()">↓ 下載 Markdown</button>
     </div>
@@ -335,10 +336,11 @@ details[open] summary::before { transform: rotate(90deg); }
       <li>點「↓ 下載 Markdown」儲存到本機</li>
     </ol>
 
-    <h3>兩種收音模式</h3>
+    <h3>三種收音模式</h3>
     <ul>
-      <li><b>🎙 只收麥克風</b>：只錄自己說話，不收任何瀏覽器聲音。適合錄語音筆記、獨自說話的場合。</li>
-      <li><b>🎙＋🖥 麥克風＋分頁</b>：同時收麥克風與瀏覽器分頁音訊。適合 Teams/Zoom 開會（自己說話＋對方聲音一起收）、看 YouTube 課程邊說筆記等。<br>點按鈕後：① 先允許麥克風 → ② 再選要收音的分頁並勾選「<b>共享分頁音訊</b>」。若步驟②取消，會自動退回純麥克風模式繼續錄音。</li>
+      <li><b>🎙 只收麥克風</b>：只錄自己說話，不收任何瀏覽器聲音。適合語音備忘、獨自說話的場合。</li>
+      <li><b>🖥 只收分頁音訊</b>：只收瀏覽器分頁的聲音，完全不收麥克風。適合 YouTube、線上課程、播放影片時，不想混入環境噪音。點按鈕後選分頁並勾選「<b>共享分頁音訊</b>」。電腦靜音也不影響收音。</li>
+      <li><b>🎙＋🖥 麥克風＋分頁</b>：同時收麥克風與瀏覽器分頁音訊，兩路合併。適合 Teams/Zoom 開會（自己說話＋對方聲音一起收）。點按鈕後：① 先允許麥克風 → ② 再選分頁並勾選「共享分頁音訊」。若步驟②取消，會自動退回純麥克風繼續錄音。</li>
     </ul>
 
     <h3>注意事項</h3>
@@ -382,7 +384,7 @@ function status(msg, cls) {
   dot(cls || '');
 }
 function setBtns(recording) {
-  ['btn-mic', 'btn-mixed'].forEach(id => document.getElementById(id).disabled = recording);
+  ['btn-mic', 'btn-screen', 'btn-mixed'].forEach(id => document.getElementById(id).disabled = recording);
   document.getElementById('btn-stop').disabled = !recording;
   ['api-key', 'language', 'model', 'translate-to'].forEach(id =>
     document.getElementById(id).disabled = recording
@@ -488,6 +490,25 @@ async function startScreen() {
   }
 }
 
+// ── Start screen / tab capture (no mic) ───────────────────────────────────
+async function startScreen() {
+  if (!validate()) return;
+  try {
+    const raw = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    raw.getVideoTracks().forEach(t => t.stop());
+    const audioTracks = raw.getAudioTracks();
+    if (!audioTracks.length) {
+      status('⚠️ 未取得音訊。請選「分頁（Tab）」並勾選「共享分頁音訊」。');
+      return;
+    }
+    audioTracks.forEach(t => { t.onended = () => { if (isRecording) stopRecording(); }; });
+    status('錄音中（只收分頁音訊）', 'rec');
+    beginRecording(new MediaStream(audioTracks));
+  } catch (e) {
+    status(e.name === 'AbortError' ? '已取消選擇' : '⚠️ ' + e.message);
+  }
+}
+
 // ── Start mixed: mic + tab/screen audio ────────────────────────────────────
 async function startMixed() {
   if (!validate()) return;
@@ -536,7 +557,7 @@ async function startMixed() {
 function stopRecording() {
   isRecording = false;
   // 立刻鎖住所有按鈕與設定欄位，防止重複按
-  ['btn-mic', 'btn-mixed', 'btn-stop'].forEach(id =>
+  ['btn-mic', 'btn-screen', 'btn-mixed', 'btn-stop'].forEach(id =>
     document.getElementById(id).disabled = true
   );
   ['api-key', 'language', 'model', 'translate-to'].forEach(id =>
