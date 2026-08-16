@@ -921,23 +921,28 @@ details[open] summary::before { transform: rotate(90deg); }
       </div>
       <div>
         <div class="label-with-info">
-          <label for="chunk-mb">自動轉檔大小</label>
+          <label for="chunk-min">轉錄間隔</label>
           <div class="info-popover">
             <details>
               <summary><span class="info-icon" title="點擊查看換算說明">ⓘ</span></summary>
               <div class="info-card">
                 <b>換算基準說明：</b><br>
-                語音 WebM/Opus 約 40–64 kbps，10 分鐘約 3–5 MB。系統最多每 10 分鐘自動送出一次，避免單段音訊過長。
+                建議 10 分鐘；重要會議可選 5 分鐘提高穩定度。間隔越短越穩、API 次數越多；若音訊接近 API 上限，系統會提前送出。
               </div>
             </details>
           </div>
         </div>
-        <select id="chunk-mb" onchange="updateQuotaHint()">
-          <option value="3">3 MB — 約 7–10 分鐘</option>
-          <option value="5" selected>5 MB — 約 10 分鐘（預設）</option>
-          <option value="10">10 MB — 高音質備用，仍最多 10 分鐘</option>
-          <option value="15">15 MB — 高音質備用，仍最多 10 分鐘</option>
-          <option value="18">18 MB — 接近 API 上限，仍最多 10 分鐘</option>
+        <select id="chunk-min" onchange="updateQuotaHint()">
+          <option value="1">1 分鐘 — 最高穩定，最耗額度</option>
+          <option value="2">2 分鐘 — 很穩，耗額度較高</option>
+          <option value="3">3 分鐘 — 很穩</option>
+          <option value="4">4 分鐘 — 穩定</option>
+          <option value="5">5 分鐘 — 重要會議建議</option>
+          <option value="6">6 分鐘</option>
+          <option value="7">7 分鐘</option>
+          <option value="8">8 分鐘</option>
+          <option value="9">9 分鐘</option>
+          <option value="10" selected>10 分鐘 — 建議預設</option>
         </select>
       </div>
     </div>
@@ -1143,7 +1148,7 @@ details[open] summary::before { transform: rotate(90deg); }
           </div>
           <div class="qa">
             <b>Q：錄音到一半會中斷嗎？</b>
-            當錄音檔案達到你設定的「自動轉檔大小」，或單段錄音達 10 分鐘時，系統會自動在背景送出一段轉錄並繼續錄音，確保長會議也不中斷。
+            當單段錄音達到你設定的「轉錄間隔」，或音訊接近 API 上限時，系統會自動在背景送出一段轉錄並繼續錄音，確保長會議也不中斷。
           </div>
         </div>
       </details>
@@ -1193,7 +1198,7 @@ const SILENCE_WARNING_MS = 15000;
 const SILENCE_RMS_THRESHOLD = 0.012;
 const SILENCE_PEAK_THRESHOLD = 0.08;
 const MIN_SILENCE_SAMPLES = 4;
-const MAX_CHUNK_MS = 10 * 60 * 1000;
+const MAX_CHUNK_BYTES = 18 * 1024 * 1024;
 
 // ── Feature 3: API wait timer state ───────────────────────────────────────
 let _apiWaitTimer = null;
@@ -1726,7 +1731,7 @@ function setBtns(recording) {
     if (el) el.disabled = recording;
   });
   document.getElementById('btn-stop').disabled = !recording;
-  ['api-key', 'language', 'translate-to', 'chunk-mb'].forEach(id =>
+  ['api-key', 'language', 'translate-to', 'chunk-min'].forEach(id =>
     document.getElementById(id).disabled = recording
   );
   updateModeCards();
@@ -2057,9 +2062,9 @@ function startRecorderOnStream(stream) {
     const mb = (recordingSize / 1024 / 1024).toFixed(1);
     setRecordingSizeLabel(`${mb} MB`);
     status('錄音中', 'rec');
-    const chunkMB = parseInt(document.getElementById('chunk-mb').value, 10) || 5;
-    const hitSizeLimit = recordingSize >= chunkMB * 1024 * 1024;
-    const hitDurationLimit = Date.now() - chunkStartMs >= MAX_CHUNK_MS;
+    const chunkMinutes = parseInt(document.getElementById('chunk-min').value, 10) || 10;
+    const hitSizeLimit = recordingSize >= MAX_CHUNK_BYTES;
+    const hitDurationLimit = Date.now() - chunkStartMs >= chunkMinutes * 60 * 1000;
     const hitInitialFeedback =
       currentRecordingSession &&
       !currentRecordingSession.initialFeedbackFlushed &&
@@ -2071,8 +2076,8 @@ function startRecorderOnStream(stream) {
         hitInitialFeedback
           ? '先送出前 1 分鐘音訊，確認轉錄正常...'
           : hitDurationLimit
-            ? '單段錄音達 10 分鐘，自動送出並繼續錄音...'
-          : `音訊達 ${chunkMB} MB，自動送出並繼續錄音...`,
+            ? `單段錄音達 ${chunkMinutes} 分鐘，自動送出並繼續錄音...`
+          : '音訊接近 API 上限，自動送出並繼續錄音...',
         'proc'
       );
       recorder.stop();
@@ -2245,7 +2250,7 @@ function stopRecording() {
   ['btn-mic', 'btn-screen', 'btn-mixed', 'btn-start', 'btn-stop'].forEach(id =>
     document.getElementById(id).disabled = true
   );
-  ['api-key', 'language', 'translate-to', 'chunk-mb'].forEach(id =>
+  ['api-key', 'language', 'translate-to', 'chunk-min'].forEach(id =>
     document.getElementById(id).disabled = true
   );
   if (recorder && recorder.state === 'recording') {
@@ -2573,17 +2578,15 @@ function downloadTXT() {
   URL.revokeObjectURL(a.href);
 }
 
-// ── API quota hint (動態依 MB 設定更新) ────────────────────────────────────
-const MB_MIN_MAP = { '3': 8.5, '5': 10, '10': 10, '15': 10, '18': 10 };
+// ── API quota hint (動態依分鐘設定更新) ───────────────────────────────────
 const FREE_RPD   = 500; // gemini-3.1-flash-lite 免費每日呼叫上限
 
 function updateQuotaHint() {
-  const mb         = document.getElementById('chunk-mb').value;
-  const minPerCall = MB_MIN_MAP[mb] || 50;
+  const minPerCall = parseInt(document.getElementById('chunk-min').value, 10) || 10;
   const totalHrs   = Math.floor(FREE_RPD * minPerCall / 60);
   const callsPerHr = Math.ceil(60 / minPerCall);
   document.getElementById('api-quota-hint').textContent =
-    `ℹ️ 免費額度：${FREE_RPD} 次/天。10 分鐘語音約 3–5 MB；目前最多約 ${Math.round(minPerCall)} 分鐘送出一次，` +
+    `ℹ️ 建議：一般用 10 分鐘、重要會議用 5 分鐘。免費額度 ${FREE_RPD} 次/天；目前每 ${minPerCall} 分鐘送出一次，` +
     `約 ${callsPerHr} 次/小時、${totalHrs} 小時/天。`;
 }
 updateQuotaHint(); // 頁面載入時立即顯示
