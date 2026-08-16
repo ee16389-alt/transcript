@@ -927,17 +927,17 @@ details[open] summary::before { transform: rotate(90deg); }
               <summary><span class="info-icon" title="點擊查看換算說明">ⓘ</span></summary>
               <div class="info-card">
                 <b>換算基準說明：</b><br>
-                語音 WebM/Opus 約 40–64 kbps，即每分鐘約 0.3–0.5 MB。系統最多每 10 分鐘自動送出一次，避免單段音訊過長。
+                語音 WebM/Opus 約 40–64 kbps，10 分鐘約 3–5 MB。系統最多每 10 分鐘自動送出一次，避免單段音訊過長。
               </div>
             </details>
           </div>
         </div>
         <select id="chunk-mb" onchange="updateQuotaHint()">
           <option value="3">3 MB — 約 7–10 分鐘</option>
-          <option value="5">5 MB — 最多 10 分鐘</option>
-          <option value="10">10 MB — 最多 10 分鐘</option>
-          <option value="15">15 MB — 最多 10 分鐘</option>
-          <option value="18" selected>18 MB — 最多 10 分鐘（預設）</option>
+          <option value="5" selected>5 MB — 約 10 分鐘（預設）</option>
+          <option value="10">10 MB — 高音質備用，仍最多 10 分鐘</option>
+          <option value="15">15 MB — 高音質備用，仍最多 10 分鐘</option>
+          <option value="18">18 MB — 接近 API 上限，仍最多 10 分鐘</option>
         </select>
       </div>
     </div>
@@ -2057,7 +2057,7 @@ function startRecorderOnStream(stream) {
     const mb = (recordingSize / 1024 / 1024).toFixed(1);
     setRecordingSizeLabel(`${mb} MB`);
     status('錄音中', 'rec');
-    const chunkMB = parseInt(document.getElementById('chunk-mb').value, 10) || 18;
+    const chunkMB = parseInt(document.getElementById('chunk-mb').value, 10) || 5;
     const hitSizeLimit = recordingSize >= chunkMB * 1024 * 1024;
     const hitDurationLimit = Date.now() - chunkStartMs >= MAX_CHUNK_MS;
     const hitInitialFeedback =
@@ -2583,7 +2583,7 @@ function updateQuotaHint() {
   const totalHrs   = Math.floor(FREE_RPD * minPerCall / 60);
   const callsPerHr = Math.ceil(60 / minPerCall);
   document.getElementById('api-quota-hint').textContent =
-    `ℹ️ 免費額度：${FREE_RPD} 次/天。${mb} MB 設定下最多約 ${Math.round(minPerCall)} 分鐘送出一次，` +
+    `ℹ️ 免費額度：${FREE_RPD} 次/天。10 分鐘語音約 3–5 MB；目前最多約 ${Math.round(minPerCall)} 分鐘送出一次，` +
     `約 ${callsPerHr} 次/小時、${totalHrs} 小時/天。`;
 }
 updateQuotaHint(); // 頁面載入時立即顯示
