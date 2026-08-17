@@ -1178,6 +1178,7 @@ let segResultBuffer  = {};  // segNum → result, held until prior segments arri
 let selectedMode     = 'mic';
 let lastStatusMsg    = '尚未開始';
 let recordingTimer   = null;
+let initialFeedbackTimer = null;
 
 // ── Feature 2: timing state ────────────────────────────────────────────────
 let recordingStartMs = 0;   // Date.now() when beginRecording() was called
@@ -1996,6 +1997,8 @@ function shouldSkipSilentSegment() {
 
 // ── Cleanup all active streams & audio context ─────────────────────────────
 function cleanupStreams() {
+  clearTimeout(initialFeedbackTimer);
+  initialFeedbackTimer = null;
   stopSilenceMonitor();
   if (activeStream) { activeStream.getTracks().forEach(t => t.stop()); activeStream = null; }
   extraStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
@@ -2044,6 +2047,16 @@ function beginRecording(stream) {
   scheduleFileBackup();
   startSilenceMonitor(stream);
   startRecorderOnStream(stream);
+  clearTimeout(initialFeedbackTimer);
+  initialFeedbackTimer = setTimeout(() => {
+    if (!isRecording || !currentRecordingSession || currentRecordingSession.initialFeedbackFlushed) return;
+    if (!recorder || recorder.state !== 'recording') return;
+    currentRecordingSession.initialFeedbackFlushed = true;
+    autoFlushing = true;
+    status('先送出前 1 分鐘音訊，確認轉錄正常...', 'proc');
+    try { recorder.requestData(); } catch (_) {}
+    recorder.stop();
+  }, 60000);
 }
 
 function startRecorderOnStream(stream) {
@@ -2069,6 +2082,10 @@ function startRecorderOnStream(stream) {
     if ((hitSizeLimit || hitDurationLimit || hitInitialFeedback) && !autoFlushing) {
       autoFlushing = true;
       if (currentRecordingSession) currentRecordingSession.initialFeedbackFlushed = true;
+      if (hitInitialFeedback) {
+        clearTimeout(initialFeedbackTimer);
+        initialFeedbackTimer = null;
+      }
       status(
         hitInitialFeedback
           ? '先送出前 1 分鐘音訊，確認轉錄正常...'
@@ -2243,6 +2260,8 @@ async function startMixed() {
 function stopRecording() {
   markCurrentRecordingSessionStopped(Date.now());
   isRecording = false;
+  clearTimeout(initialFeedbackTimer);
+  initialFeedbackTimer = null;
   // 立刻鎖住所有按鈕與設定欄位，防止重複按
   ['btn-mic', 'btn-screen', 'btn-mixed', 'btn-start', 'btn-stop'].forEach(id =>
     document.getElementById(id).disabled = true
