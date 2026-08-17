@@ -2439,7 +2439,8 @@ async function sendToGemini(blob, modelIdx = 0, segNum = null, startSec = null, 
 
 function normalizeChineseOutput(text, languageLabel) {
   if (!text) return text;
-  if (languageLabel !== '繁體中文') return text;
+  const simplifiedSignal = /[这为无议们对听让从还个给题将护实过产湾发舰陆进边圆术]/;
+  if (languageLabel !== '繁體中文' && !simplifiedSignal.test(text)) return text;
   const phraseMap = {
     '无人机': '無人機',
     '公听会': '公聽會',
