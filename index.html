@@ -2345,8 +2345,8 @@ async function sendToGemini(blob, modelIdx = 0, segNum = null, startSec = null, 
   const translateTo = document.getElementById('translate-to').value;
 
   const langLine = language === 'auto'
-    ? '自動辨識語言；中文內容請使用繁體中文字形。'
-    : `主要語言為${language}，請使用對應的正體字形。`;
+    ? '自動辨識語言；凡是中文內容一律使用繁體中文與台灣常用字，不可輸出簡體字。'
+    : `主要語言為${language}；若內容為中文，一律使用繁體中文與台灣常用字，不可輸出簡體字。`;
 
   const prompt = translateTo ? [
     '請完成以下兩件事：',
@@ -2424,8 +2424,8 @@ async function sendToGemini(blob, modelIdx = 0, segNum = null, startSec = null, 
 
     const origMatch  = raw.match(/【原文】\s*([\s\S]*?)(?=【翻譯】|$)/);
     const transMatch = raw.match(/【翻譯】\s*([\s\S]*?)$/);
-    const origText   = deloopText(origMatch  ? origMatch[1].trim()  : raw.trim());
-    const transText  = transMatch ? deloopText(transMatch[1].trim()) : null;
+    const origText   = deloopText(normalizeChineseOutput(origMatch ? origMatch[1].trim() : raw.trim(), language));
+    const transText  = transMatch ? deloopText(normalizeChineseOutput(transMatch[1].trim(), translateTo || language)) : null;
 
     markModelSuccess(model);
     appendSeg(now, origText, transText, segNum, false, startSec, endSec);
@@ -2435,6 +2435,40 @@ async function sendToGemini(blob, modelIdx = 0, segNum = null, startSec = null, 
     appendSeg('', `⚠️ 網路錯誤：${e.message}`, null, segNum, true, startSec, endSec);
     showToast(`網路錯誤：${e.message}`);
   }
+}
+
+function normalizeChineseOutput(text, languageLabel) {
+  if (!text) return text;
+  if (languageLabel !== '繁體中文') return text;
+  const phraseMap = {
+    '无人机': '無人機',
+    '公听会': '公聽會',
+    '立法院': '立法院',
+    '护国神山': '護國神山',
+    '台湾': '台灣',
+    '里面': '裡面',
+    '技术': '技術',
+    '国防': '國防',
+    '美国': '美國',
+    '俄罗斯': '俄羅斯',
+    '乌克兰': '烏克蘭',
+    '中国大陆': '中國大陸',
+    '伊朗': '伊朗',
+  };
+  const charMap = {
+    '这':'這','那':'那','为':'為','会':'會','无':'無','机':'機','议':'議','题':'題','国':'國','们':'們','对':'對','听':'聽','说':'說','让':'讓','从':'從','还':'還','没':'沒','个':'個','来':'來','内':'內','给':'給','将':'將','护':'護','实':'實','场':'場','过':'過','产':'產','业':'業','发':'發','舰':'艦','陆':'陸','进':'進','边':'邊','圆':'圓','导':'導','联':'聯','报':'報','价':'價','万':'萬','颗':'顆','军':'軍','复':'複','须':'須','找':'找','廉':'廉','东':'東','买':'買','车':'車','载':'載','认':'認','输':'輸','转':'轉','录':'錄','页':'頁','频':'頻','资':'資','讯':'訊','储':'儲','览':'覽','览':'覽','览':'覽','浏':'瀏','览':'覽','设':'設','录':'錄','声':'聲','学':'學','体':'體','简':'簡','汉':'漢','听':'聽','补':'補','写':'寫','测':'測','识':'識','讲':'講','词':'詞','优':'優','显':'顯','区':'區','档':'檔','夹':'夾','备':'備','键':'鍵','图':'圖','统':'統','处':'處','错':'錯','误':'誤','网':'網','络':'絡','达':'達','与':'與','专':'專','关':'關','门':'門','开':'開','数':'數','据':'據','时':'時','间':'間','长':'長','风':'風','险':'險','稳':'穩','额':'額','费':'費','选':'選','择':'擇','项':'項','击':'擊','查':'查','看':'看','议':'議','义':'義','务':'務','权':'權','属':'屬','该':'該','经':'經','举':'舉','证':'證','际':'際','线':'線','历':'歷','战':'戰','产':'產','务':'務','岛':'島','干':'幹','哪':'哪','种':'種','第':'第','两':'兩','圆':'圓','火':'火','术':'術',
+  };
+  let output = text;
+  for (const [from, to] of Object.entries(phraseMap)) {
+    output = output.split(from).join(to);
+  }
+  output = output
+    .replace(/[^\x00-\x7F]/g, ch => charMap[ch] || ch)
+    .replace(/([\u3400-\u9FFF])\s+([\u3400-\u9FFF])/g, '$1$2');
+  while (/[\u3400-\u9FFF]\s+[\u3400-\u9FFF]/.test(output)) {
+    output = output.replace(/([\u3400-\u9FFF])\s+([\u3400-\u9FFF])/g, '$1$2');
+  }
+  return output;
 }
 
 // ── Repetition detector (anti-hallucination) ───────────────────────────────
