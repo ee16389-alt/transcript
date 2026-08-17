@@ -2531,18 +2531,26 @@ function _renderSeg(time, text, translation, isError = false, startSec = null, e
     span.textContent = joinTranscriptText(mainText.textContent, text);
     mainText.appendChild(span);
 
-    // 翻譯區塊仍逐段附加在文字區塊後
+    // 同一次錄音的翻譯也接在同一個翻譯區塊，不逐段拆卡
     if (translation) {
-      const tBlock = document.createElement('div');
-      tBlock.className = 'seg-translation seg-fadein';
-      const lbl = document.createElement('div');
-      lbl.className = 'seg-translation-label';
-      lbl.textContent = document.getElementById('translate-to').value;
-      const tTxt = document.createElement('div');
-      tTxt.textContent = translation;
-      tBlock.appendChild(lbl);
-      tBlock.appendChild(tTxt);
-      body.appendChild(tBlock);
+      let tBlock = body.querySelector('.session-translation');
+      let tTxt = tBlock?.querySelector('.session-translation-text');
+      if (!tBlock || !tTxt) {
+        tBlock = document.createElement('div');
+        tBlock.className = 'session-translation seg-translation seg-fadein';
+        const lbl = document.createElement('div');
+        lbl.className = 'seg-translation-label';
+        lbl.textContent = document.getElementById('translate-to').value;
+        tTxt = document.createElement('div');
+        tTxt.className = 'session-translation-text';
+        tBlock.appendChild(lbl);
+        tBlock.appendChild(tTxt);
+        body.appendChild(tBlock);
+      }
+      const tSpan = document.createElement('span');
+      tSpan.className = 'seg-fadein';
+      tSpan.textContent = joinTranscriptText(tTxt.textContent, translation);
+      tTxt.appendChild(tSpan);
     }
   }
 
