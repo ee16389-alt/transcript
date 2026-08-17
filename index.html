@@ -75,18 +75,6 @@ body {
   border-radius: 20px; padding: .15rem .65rem; margin-left: .25rem;
 }
 
-/* Header QR Code 容器卡片化 */
-.topbar-qr-card {
-  display: flex; align-items: center; gap: .5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-base);
-  padding: .35rem .65rem;
-  box-shadow: var(--sh-sm);
-}
-.qr-box { display: flex; align-items: center; justify-content: center; }
-.qr-label { font-size: .65rem; color: var(--muted); font-weight: 600; line-height: 1; }
-
 /* Main layout */
 .main { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
 
@@ -742,7 +730,6 @@ details[open] summary::before { transform: rotate(90deg); }
   .topbar-icon { width: 30px; height: 30px; }
   .header-btn { width: 40px; min-width: 40px; height: 40px; padding: 0; font-size: 1rem; }
   .header-btn .btn-label { display: none; }
-  .topbar-qr-card { display: none; }
   .main {
     padding: .85rem .85rem calc(5rem + env(safe-area-inset-bottom));
   }
@@ -824,7 +811,6 @@ details[open] summary::before { transform: rotate(90deg); }
   --sh-hover:     0 8px 20px rgba(0,0,0,.4);
 }
 [data-theme="dark"] .topbar { background: rgba(30, 41, 59, 0.85); }
-[data-theme="dark"] .topbar-qr-card { background: var(--surface); border-color: var(--border); }
 [data-theme="dark"] .drawer-head { background: rgba(30, 41, 59, .9); }
 [data-theme="dark"] .settings-backdrop { background: rgba(2, 6, 23, .55); }
 [data-theme="dark"] .bw { background: #2E2410; color: #FCD34D; border-color: #92400E; }
@@ -870,10 +856,6 @@ details[open] summary::before { transform: rotate(90deg); }
   <div class="topbar-actions">
     <button id="btn-settings" onclick="openSettings()" class="bs header-btn" title="API / Audio Settings"><span aria-hidden="true">⚙️</span><span class="btn-label">API / Audio Settings</span></button>
     <button id="btn-theme" onclick="toggleTheme()" class="bs icon-btn" title="切換深色模式">🌙</button>
-    <div class="topbar-qr-card">
-      <div class="qr-box"><div id="qrcode"></div></div>
-      <div class="qr-label">掃描開啟</div>
-    </div>
   </div>
 </header>
 
@@ -2678,19 +2660,6 @@ document.addEventListener('keydown', e => {
   } catch (_) {
     idb = null; // IndexedDB 不可用，靜默略過
   }
-})();
-
-// ── QR Code ────────────────────────────────────────────────────────────────
-(function () {
-  const s = document.createElement('script');
-  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
-  s.onload = () => new QRCode(document.getElementById('qrcode'), {
-    text: location.href,
-    width: 80, height: 80,
-    colorDark: '#0F766E', colorLight: '#ffffff',
-    correctLevel: QRCode.CorrectLevel.M,
-  });
-  document.head.appendChild(s);
 })();
 
 // ── Dark mode toggle ──────────────────────────────────────────────────────
