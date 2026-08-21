@@ -1197,6 +1197,7 @@ const SILENCE_RMS_THRESHOLD = 0.012;
 const SILENCE_PEAK_THRESHOLD = 0.08;
 const MIN_SILENCE_SAMPLES = 4;
 const MAX_CHUNK_BYTES = 18 * 1024 * 1024;
+const INITIAL_FEEDBACK_MS = 15 * 1000;
 
 // ── Feature 3: API wait timer state ───────────────────────────────────────
 let _apiWaitTimer = null;
@@ -1566,7 +1567,6 @@ function buildTranscriptMarkdown(stateLabel = '') {
         lines.push('> ⚠️ [此段轉錄失敗，內容遺失]', '');
         return;
       }
-      if (s.time) lines.push(`**${s.time}**`, '');
       lines.push(s.text || '', '');
       if (s.translation) {
         lines.push(`> ${s.translation.replace(/\n/g, '\n> ')}`, '');
@@ -1600,7 +1600,6 @@ function buildRecordingSessionMarkdown(session, stateLabel = '', explicitIndex =
       lines.push('> ⚠️ [此段轉錄失敗，內容遺失]', '');
       return;
     }
-    if (s.time) lines.push(`**${s.time}**`, '');
     lines.push(s.text || '', '');
     if (s.translation) {
       lines.push(`> ${s.translation.replace(/\n/g, '\n> ')}`, '');
@@ -2053,10 +2052,10 @@ function beginRecording(stream) {
     if (!recorder || recorder.state !== 'recording') return;
     currentRecordingSession.initialFeedbackFlushed = true;
     autoFlushing = true;
-    status('先送出前 1 分鐘音訊，確認轉錄正常...', 'proc');
+    status('先送出前 15 秒音訊，確認轉錄正常...', 'proc');
     try { recorder.requestData(); } catch (_) {}
     recorder.stop();
-  }, 60000);
+  }, INITIAL_FEEDBACK_MS);
 }
 
 function startRecorderOnStream(stream) {
@@ -2078,7 +2077,7 @@ function startRecorderOnStream(stream) {
     const hitInitialFeedback =
       currentRecordingSession &&
       !currentRecordingSession.initialFeedbackFlushed &&
-      Date.now() - currentRecordingSession.startedAt >= 60000;
+      Date.now() - currentRecordingSession.startedAt >= INITIAL_FEEDBACK_MS;
     if ((hitSizeLimit || hitDurationLimit || hitInitialFeedback) && !autoFlushing) {
       autoFlushing = true;
       if (currentRecordingSession) currentRecordingSession.initialFeedbackFlushed = true;
@@ -2088,7 +2087,7 @@ function startRecorderOnStream(stream) {
       }
       status(
         hitInitialFeedback
-          ? '先送出前 1 分鐘音訊，確認轉錄正常...'
+          ? '先送出前 15 秒音訊，確認轉錄正常...'
           : hitDurationLimit
             ? `單段錄音達 ${chunkMinutes} 分鐘，自動送出並繼續錄音...`
           : '音訊接近 API 上限，自動送出並繼續錄音...',
