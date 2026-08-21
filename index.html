@@ -2644,7 +2644,7 @@ function downloadTXT() {
   const segs = sessionSegs.filter(s => !s.isError);
   if (!segs.length) { status('⚠️ 尚無內容可下載'); return; }
   const today = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
-  const txt = buildTranscriptText();
+  const txt = transcriptPlainText();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain;charset=utf-8' }));
   a.download = `逐字稿_${today}.txt`;
