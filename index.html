@@ -1,0 +1,3131 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+(function(){
+  var s=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+  if(s==='dark')document.documentElement.setAttribute('data-theme','dark');
+})();
+</script>
+<title>漸字稿系統</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230D9488'/%3E%3Ctext x='50%25' y='52%25' dominant-baseline='middle' text-anchor='middle' font-size='38'%3E%F0%9F%8E%99%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:           #F8FAFC;
+  --surface:      #FFFFFF;
+  --fg:           #0F172A;
+  --muted:        #64748B;
+  --border:       #E2E8F0;
+  --border-d:     #CBD5E1;
+  --accent:       #0D9488;
+  --accent-h:     #0F766E;
+  --accent-soft:  #F0FDFA;
+  --accent-ring:  rgba(13,148,136,.15);
+  --accent-bdr:   #99F6E4;
+  --danger:       #DC2626;
+  --danger-soft:  #FEF2F2;
+  --danger-bdr:   #FECACA;
+  --warning:      #D97706;
+  --sh-sm:        0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --sh-card:      0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
+  --sh-hover:     0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+  --r-card:       14px;
+  --r-base:       8px;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Top bar */
+.topbar {
+  position: sticky; top: 0; z-index: 10;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: .75rem 2rem;
+  display: flex; align-items: center; gap: .75rem;
+}
+.topbar-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(13,148,136,.25);
+}
+.topbar-icon svg { width: 18px; height: 18px; fill: #fff; }
+.topbar-name { font-size: 1rem; font-weight: 700; letter-spacing: -.02em; color: var(--fg); }
+.topbar-tag {
+  font-size: .7rem; font-weight: 600;
+  background: var(--accent-soft); color: var(--accent);
+  border: 1px solid var(--accent-bdr);
+  border-radius: 20px; padding: .15rem .65rem; margin-left: .25rem;
+}
+
+/* Main layout */
+.main { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+/* Section label & sublabel */
+.slabel {
+  font-size: .7rem; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .08em;
+  margin-bottom: .75rem; display: flex; align-items: center; gap: .4rem;
+}
+.sub-label {
+  font-size: .75rem; font-weight: 600; color: var(--muted);
+  margin-bottom: .5rem; display: block;
+}
+
+/* Card */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 1.4rem 1.6rem;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--sh-card);
+  transition: box-shadow 200ms ease;
+}
+
+/* Grid */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.full  { grid-column: 1 / -1; }
+
+/* Form fields */
+label { display: block; font-size: .75rem; font-weight: 600; color: var(--fg); margin-bottom: .4rem; }
+
+input[type=text], input[type=password], select {
+  width: 100%; padding: .6rem .85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-base);
+  font-size: .875rem; font-family: inherit;
+  color: var(--fg); background: var(--surface);
+  outline: none;
+  transition: all 150ms ease;
+  box-shadow: var(--sh-sm);
+}
+input:focus, select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* 轉檔大小 Info Tooltip */
+.label-with-info { display: flex; align-items: center; gap: .4rem; margin-bottom: .4rem; }
+.label-with-info label { margin-bottom: 0; }
+.info-popover { position: relative; display: inline-block; cursor: pointer; }
+.info-icon {
+  font-size: .7rem; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 50%; width: 16px; height: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 600; line-height: 1;
+}
+.info-popover details {
+  position: relative; background: transparent; border: none; box-shadow: none; margin: 0;
+}
+.info-popover summary {
+  padding: 0; list-style: none; display: flex; align-items: center;
+}
+.info-popover summary::-webkit-details-marker { display: none; }
+.info-popover summary::before { content: none !important; }
+.info-card {
+  position: absolute; left: 0; top: 120%; z-index: 30;
+  width: 280px; padding: .75rem; font-size: .75rem; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-base); box-shadow: var(--sh-hover);
+  line-height: 1.5;
+}
+
+/* 操作按鈕列分組 */
+.btn-group-section { display: flex; flex-direction: column; gap: 1rem; }
+.btn-row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+
+button {
+  padding: .55rem 1rem;
+  border: 1px solid transparent;
+  border-radius: var(--r-base);
+  font-size: .875rem; font-weight: 600; cursor: pointer;
+  font-family: inherit;
+  transition: all 150ms ease;
+  white-space: nowrap; min-height: 40px;
+  display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+  box-shadow: var(--sh-sm);
+}
+button:disabled { opacity: .45; cursor: not-allowed; filter: grayscale(50%); }
+button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--sh-hover); }
+button:active:not(:disabled) { transform: translateY(0); }
+
+.bp { background: var(--accent); color: #fff; border-color: var(--accent); }
+.bp:hover:not(:disabled) { background: var(--accent-h); border-color: var(--accent-h); }
+.bd { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-bdr); }
+.bd:hover:not(:disabled) { background: #FEE2E2; }
+.bs { background: var(--surface); color: var(--fg); border-color: var(--border-d); }
+.bs:hover:not(:disabled) { background: var(--bg); color: var(--fg); }
+.bg { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-bdr); }
+.bg:hover:not(:disabled) { background: #CCFBF1; }
+
+/* Status bar */
+#sbar {
+  display: flex; align-items: center; gap: .65rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-base);
+  padding: .65rem 1.1rem; margin-bottom: 1.25rem;
+  font-size: .85rem; font-weight: 500; color: var(--fg);
+  box-shadow: var(--sh-card);
+}
+#sdot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-d); flex-shrink: 0; transition: background 200ms ease; }
+#sdot.rec  { background: #22C55E; animation: blink 1.2s infinite ease-in-out; }
+#sdot.proc { background: var(--warning); animation: blink .9s infinite ease-in-out; }
+#sdot.done { background: var(--accent); }
+#sdot.api  { background: var(--accent); animation: sdot-bounce .7s ease-in-out infinite; }
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+@keyframes sdot-bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+
+/* 逐字稿顯示區 */
+#tarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 1.25rem 1.5rem;
+  min-height: auto;
+  max-height: 60vh;
+  overflow-y: auto; font-size: .925rem; line-height: 1.8;
+  box-shadow: var(--sh-card);
+}
+#tarea::-webkit-scrollbar { width: 6px; }
+#tarea::-webkit-scrollbar-track { background: transparent; }
+#tarea::-webkit-scrollbar-thumb { background: var(--border-d); border-radius: 4px; }
+
+.empty {
+  color: var(--muted); font-size: .875rem; text-align: center;
+  padding: 1.5rem 1rem; border: 1px dashed var(--border); border-radius: var(--r-base);
+  background: var(--bg);
+}
+
+.seg-time { font-size: .7rem; font-weight: 700; color: var(--muted); margin-bottom: .25rem; letter-spacing: .03em; }
+.seg-text { white-space: pre-wrap; word-break: break-word; color: var(--fg); }
+.seg-translation {
+  white-space: pre-wrap; word-break: break-word;
+  margin-top: .6rem; padding: .75rem 1rem;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-bdr);
+  border-radius: var(--r-base);
+  color: var(--accent-h); font-size: .875rem;
+}
+.seg-translation-label {
+  font-size: .65rem; font-weight: 700; color: var(--accent);
+  text-transform: uppercase; letter-spacing: .06em; margin-bottom: .2rem;
+}
+.recording-session {
+  padding: 1rem 0;
+}
+.recording-session:first-child { padding-top: 0; }
+.recording-session + .recording-session {
+  border-top: 1px solid var(--border);
+  margin-top: 1rem;
+}
+.recording-session-head {
+  margin-bottom: .85rem;
+}
+.recording-session-title {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--fg);
+  line-height: 1.3;
+}
+.recording-session-meta {
+  margin-top: .25rem;
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.recording-session-body {
+  display: grid;
+  gap: .65rem;
+}
+.divider { border: none; border-top: 1px solid var(--border); margin: .75rem 0; }
+
+/* Error segment */
+.seg-error {
+  font-style: italic; color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-bdr);
+  border-radius: var(--r-base);
+  padding: .4rem .8rem; font-size: .85rem; margin: .5rem 0;
+}
+
+@keyframes seg-fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.seg-fadein { animation: seg-fadein 250ms ease forwards; }
+
+/* ── 段落狀態卡片 ─────────────────────────────────────────────────────────── */
+.seg-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-base);
+  padding: .65rem .95rem;
+  background: var(--surface);
+  transition: border-color 250ms ease, background 250ms ease;
+}
+.recording-session-body .seg-card + .seg-card { margin-top: .55rem; }
+.seg-card-head {
+  display: flex; align-items: center; gap: .55rem;
+  flex-wrap: wrap; margin-bottom: .3rem;
+}
+.seg-badge {
+  display: inline-flex; align-items: center; gap: .25rem;
+  font-size: .67rem; font-weight: 700;
+  border-radius: 20px; padding: .13rem .55rem;
+  letter-spacing: .04em; white-space: nowrap; flex-shrink: 0;
+  border: 1px solid transparent;
+}
+.seg-badge-recording {
+  background: var(--danger-soft); color: var(--danger); border-color: var(--danger-bdr);
+  animation: blink 1.2s infinite ease-in-out;
+}
+.seg-badge-correcting { background: #FFF7ED; color: #C2410C; border-color: #FED7AA; }
+.seg-badge-final      { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-bdr); }
+.seg-badge-silent     { background: var(--bg); color: var(--muted); border-color: var(--border); }
+.seg-badge-error      { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-bdr); }
+.seg-countdown {
+  font-size: .72rem; color: var(--muted);
+  font-variant-numeric: tabular-nums; font-weight: 500;
+}
+.seg-card-body {
+  font-size: .925rem; line-height: 1.8; color: var(--fg);
+  white-space: pre-wrap; word-break: break-word;
+}
+.seg-card[data-status="correcting"] { border-color: #FED7AA; background: #FFFBF7; }
+.seg-card[data-status="final"]      { border-color: var(--accent-bdr); }
+.seg-card[data-status="silent"] .seg-card-body,
+.seg-card[data-status="error"]  .seg-card-body { font-style: italic; color: var(--muted); font-size: .875rem; }
+[data-theme="dark"] .seg-badge-correcting { background: #431407; color: #FB923C; border-color: #9A3412; }
+[data-theme="dark"] .seg-card[data-status="correcting"] { border-color: #9A3412; background: #1A0A04; }
+[data-theme="dark"] .seg-card[data-status="final"]      { border-color: var(--accent-bdr); }
+
+/* Toast */
+#toast {
+  position: fixed; bottom: 2rem; left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  background: var(--danger); color: #fff;
+  font-size: .85rem; font-weight: 600;
+  padding: .5rem 1.25rem; border-radius: 30px;
+  box-shadow: 0 10px 25px -5px rgba(220, 38, 38, 0.4);
+  opacity: 0; transition: all 220ms ease;
+  pointer-events: none; z-index: 200; white-space: nowrap;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+#toast-info {
+  position: fixed; top: 4.5rem; right: 1.5rem;
+  background: rgba(15,23,42,.92); color: #F8FAFC;
+  font-size: .8rem; font-weight: 500;
+  padding: .5rem 1.1rem; border-radius: 10px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  opacity: 0; transition: all 250ms ease;
+  transform: translateY(-8px);
+  pointer-events: none; z-index: 200; max-width: 280px;
+}
+#toast-info.show { opacity: 1; transform: translateY(0); }
+
+/* 精簡提示框 */
+.note-simple {
+  font-size: .78rem; color: var(--muted); line-height: 1.5;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--r-base); padding: .6rem .85rem; margin-top: .85rem;
+}
+
+/* Recovery bar */
+#recover-bar {
+  background: #FFFBEB; border-bottom: 1px solid #FDE68A;
+  padding: .75rem 2rem; font-size: .85rem; font-weight: 500; color: #92400E;
+  display: none; align-items: center; justify-content: space-between; gap: 1rem;
+  flex-wrap: wrap;
+}
+#recover-bar.show { display: flex; }
+.recover-btns { display: flex; gap: .5rem; flex-shrink: 0; }
+.recover-btns button { min-height: 34px; padding: .3rem .85rem; font-size: .8rem; }
+
+/* Backup reminder modal */
+.backup-reminder-backdrop {
+  position: fixed; inset: 0; z-index: 100;
+  display: none; align-items: center; justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, .34);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.backup-reminder-backdrop.show { display: flex; }
+.backup-reminder-modal {
+  width: min(420px, 100%);
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, .18);
+  padding: 1.25rem;
+}
+.backup-reminder-modal h2 {
+  font-size: 1.05rem;
+  line-height: 1.3;
+  margin-bottom: .55rem;
+}
+.backup-reminder-modal p {
+  color: var(--muted);
+  font-size: .9rem;
+  line-height: 1.65;
+}
+.backup-reminder-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .65rem;
+  margin-top: 1rem;
+}
+
+/* Changelog overlay */
+.changelog-backdrop {
+  position: fixed; inset: 0; z-index: 200;
+  display: none; align-items: flex-start; justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, .45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  overflow-y: auto;
+}
+.changelog-backdrop.show { display: flex; }
+.changelog-modal {
+  width: min(640px, 100%);
+  margin: auto;
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, .22);
+  padding: 1.5rem;
+}
+.changelog-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+.changelog-modal-head h2 { font-size: 1.1rem; margin: 0; }
+.cl-entry { margin-bottom: 1.4rem; }
+.cl-entry:last-child { margin-bottom: 0; }
+.cl-version-row {
+  display: flex; align-items: center; gap: .55rem;
+  margin-bottom: .55rem;
+}
+.cl-version-tag {
+  font-size: .75rem; font-weight: 700; letter-spacing: .04em;
+  background: var(--accent-soft); color: var(--accent);
+  border: 1px solid var(--accent-bdr);
+  border-radius: 4px; padding: .15rem .45rem;
+}
+.cl-date { font-size: .8rem; color: var(--muted); }
+.cl-item {
+  display: flex; gap: .55rem; align-items: flex-start;
+  font-size: .9rem; line-height: 1.6;
+  padding: .3rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.cl-item:last-child { border-bottom: none; }
+.cl-tag {
+  flex-shrink: 0; font-size: .7rem; font-weight: 700;
+  padding: .15rem .4rem; border-radius: 4px;
+  margin-top: .22rem;
+}
+.cl-tag-new { background: #DCFCE7; color: #166534; }
+.cl-tag-fix { background: #FEF9C3; color: #854D0E; }
+.cl-tag-ux  { background: var(--accent-soft); color: var(--accent); }
+.changelog-badge {
+  position: relative;
+  display: inline-flex;
+}
+.changelog-badge::after {
+  content: '';
+  position: absolute; top: 4px; right: 4px;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #EF4444;
+  border: 1.5px solid var(--surface);
+  display: none;
+}
+.changelog-badge.has-update::after { display: block; }
+
+/* API quota hint */
+#api-quota-hint {
+  font-size: .75rem; color: var(--accent);
+  background: var(--accent-soft); border: 1px solid var(--accent-bdr);
+  border-radius: var(--r-base); padding: .5rem .85rem;
+  margin-top: .5rem; line-height: 1.6;
+}
+
+/* 使用說明折疊 */
+details {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-card); box-shadow: var(--sh-card); margin-top: 1.25rem;
+  overflow: hidden;
+}
+summary {
+  padding: 1rem 1.4rem; font-size: .95rem; font-weight: 700;
+  cursor: pointer; list-style: none;
+  display: flex; align-items: center; gap: .6rem; color: var(--fg);
+  user-select: none; transition: background 150ms ease;
+}
+summary:hover { background: var(--bg); }
+summary::-webkit-details-marker { display: none; }
+summary::before {
+  content: '▶'; font-size: .55rem; color: var(--muted);
+  transition: transform 220ms ease;
+}
+details[open] summary::before { transform: rotate(90deg); }
+.guide { padding: 0 1.4rem 1.4rem; font-size: .9rem; line-height: 1.75; border-top: 1px solid var(--border); }
+.guide h3 {
+  font-size: .95rem; font-weight: 800; color: var(--fg);
+  text-transform: none; letter-spacing: 0; margin: 1.25rem 0 .6rem;
+}
+.guide ul, .guide ol { padding-left: 1.25rem; }
+.guide li { margin-bottom: .35rem; }
+.guide .qa { margin-bottom: .75rem; }
+.guide .qa b { display: block; color: var(--fg); font-weight: 600; }
+
+/* 使用說明內部的次級折疊 */
+.sub-details {
+  border: 1px solid var(--border); border-radius: var(--r-base);
+  margin-top: .75rem; box-shadow: none;
+}
+.sub-details summary { padding: .75rem .95rem; font-size: .9rem; font-weight: 700; }
+.sub-details .sub-content { padding: .85rem .95rem; border-top: 1px solid var(--border); font-size: .9rem; }
+
+/* Responsive */
+@media (max-width: 600px) {
+  .topbar { padding: .65rem 1rem; }
+  .main   { padding: 1.25rem 1rem 3rem; }
+  .grid2  { grid-template-columns: 1fr; }
+  .topbar-tag { display: none; }
+  .btn-row button { flex: 1 1 100%; }
+}
+
+/* 使用說明內的極簡表格樣式 */
+.guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: .75rem 0;
+  font-size: .875rem;
+}
+.guide-table th, .guide-table td {
+  padding: .55rem .75rem;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+.guide-table th {
+  background: var(--bg);
+  color: var(--fg);
+  font-weight: 600;
+  font-size: .85rem;
+}
+.guide-table td {
+  color: var(--fg);
+}
+
+/* 信任賣點 Badge 區塊 */
+.trust-badges {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: .65rem;
+  margin: .85rem 0 1.25rem;
+}
+.trust-card {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-bdr);
+  border-radius: var(--r-base);
+  padding: .65rem .85rem;
+  font-size: .875rem;
+  color: var(--accent-h);
+  line-height: 1.45;
+}
+.trust-card b {
+  display: block;
+  color: var(--accent);
+  font-size: .9rem;
+  margin-bottom: .2rem;
+}
+
+/* Refactored app shell */
+.brand-wrap { display: flex; align-items: center; gap: .75rem; min-width: 0; }
+.topbar-actions { margin-left: auto; display: flex; align-items: center; gap: .55rem; }
+.header-btn { min-height: 36px; padding: .45rem .75rem; }
+.icon-btn { width: 38px; min-width: 38px; height: 38px; padding: 0; }
+.main {
+  max-width: 1120px;
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+}
+.workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, .88fr) minmax(0, 1.12fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.settings-backdrop {
+  position: fixed; inset: 0; z-index: 80;
+  background: rgba(15, 23, 42, .34);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0; pointer-events: none;
+  transition: opacity 180ms ease;
+}
+.settings-backdrop.show { opacity: 1; pointer-events: auto; }
+.settings-drawer {
+  position: fixed; top: 0; right: 0; z-index: 90;
+  width: min(440px, 100vw); height: 100vh;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -24px 0 60px rgba(15, 23, 42, .18);
+  transform: translateX(100%);
+  transition: transform 220ms ease;
+  overflow-y: auto;
+}
+.settings-drawer.open { transform: translateX(0); }
+.drawer-head {
+  position: sticky; top: 0; z-index: 1;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+  padding: 1.25rem 1.25rem 1rem;
+  background: rgba(255,255,255,.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.drawer-head h2 { font-size: 1.1rem; line-height: 1.2; }
+.drawer-close { width: 34px; min-width: 34px; height: 34px; padding: 0; }
+.drawer-body { padding: 1.1rem 1.25rem 1.5rem; }
+.settings-grid { display: grid; gap: 1rem; }
+.remember-key {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  margin-top: .65rem;
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+.remember-key input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.field-hint {
+  margin-top: .25rem;
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.45;
+}
+.quota-banner {
+  display: block;
+  margin-top: 1rem !important;
+  color: var(--accent-h) !important;
+  background: var(--accent-soft) !important;
+  border-color: var(--accent-bdr) !important;
+}
+.settings-drawer .info-popover details {
+  position: relative;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+.settings-drawer .info-popover summary {
+  padding: 0;
+  display: inline-flex;
+  gap: 0;
+}
+.settings-drawer .info-popover summary::before { content: none !important; }
+
+.work-card {
+  height: 100%;
+  margin-bottom: 0;
+}
+.work-card-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 1rem; margin-bottom: 1rem;
+}
+.control-card .work-card-head {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.work-card h1, .work-card h2 {
+  font-size: clamp(1.25rem, 2vw, 1.65rem);
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+.control-title {
+  font-size: clamp(2rem, 3.2vw, 3rem);
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: 0;
+  color: var(--fg);
+  margin: 0;
+  white-space: nowrap;
+}
+.transcript-title {
+  font-size: clamp(1.9rem, 3.6vw, 3rem);
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: 0;
+  color: var(--fg);
+}
+.control-card { padding-bottom: 1.1rem; }
+.mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.mode-rec-badge {
+  font-size: .58rem; font-weight: 700; letter-spacing: .04em;
+  background: var(--accent); color: #fff;
+  border-radius: 20px; padding: .1rem .45rem;
+  margin-left: .3rem; vertical-align: middle;
+}
+.mode-card.active .mode-rec-badge { background: rgba(255,255,255,.28); }
+.mode-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-height: 136px;
+  padding: 1rem 1.05rem;
+  text-align: left;
+  white-space: normal;
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border-d);
+  box-shadow: var(--sh-sm);
+  width: 100%;
+}
+.mode-card b {
+  display: block;
+  min-height: 2.9em;
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+.mode-card span {
+  display: block;
+  margin-top: .55rem;
+  color: var(--muted);
+  font-size: .86rem;
+  line-height: 1.5;
+}
+.mode-card.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(13,148,136,.18);
+}
+.mode-card.active span { color: rgba(255,255,255,.82); }
+.mode-card:disabled { opacity: .7; filter: none; }
+
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+}
+.record-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .75rem;
+  width: 100%;
+}
+.record-actions button {
+  width: 100%;
+  min-height: 52px;
+  padding: .72rem .9rem;
+  font-size: .95rem;
+}
+#btn-backup { grid-column: 1 / -1; }
+.bw {
+  background: #FFFBEB;
+  color: #92400E;
+  border-color: #FDE68A;
+}
+.bw:hover:not(:disabled) { background: #FEF3C7; }
+
+#sbar.status-badge {
+  margin: 0;
+  border-radius: 999px;
+  padding: .45rem .75rem;
+  min-height: 36px;
+  box-shadow: none;
+  background: var(--bg);
+  align-self: flex-start;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+#stext {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#sdot.rec { background: var(--danger); animation: blink 1.1s infinite ease-in-out; }
+#recording-timer {
+  padding-left: .5rem;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+#recording-size {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+#recording-size:not(:empty)::before {
+  content: '|';
+  margin: 0 .35rem 0 .15rem;
+  color: var(--border-d);
+}
+
+.transcript-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.transcript-head {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.export-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+.export-btn {
+  min-height: 34px;
+  padding: .38rem .65rem;
+  font-size: .78rem;
+}
+.transcript-card #tarea {
+  flex: 1 1 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  min-height: 0;
+  max-height: none;
+}
+.note-simple {
+  margin-top: 1rem;
+  padding: .65rem .85rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-base);
+  color: var(--muted);
+  font-size: .8rem;
+  line-height: 1.55;
+}
+
+@media (max-width: 767px) {
+  .topbar { padding: .6rem .85rem; }
+  .topbar-actions { gap: .4rem; }
+  .brand-wrap { gap: .5rem; }
+  .topbar-name { font-size: .95rem; }
+  .topbar-icon { width: 30px; height: 30px; }
+  .header-btn { width: 40px; min-width: 40px; height: 40px; padding: 0; font-size: 1rem; }
+  .header-btn .btn-label { display: none; }
+  .main {
+    padding: .85rem .85rem calc(5rem + env(safe-area-inset-bottom));
+  }
+  .workspace-grid { grid-template-columns: 1fr; gap: .85rem; }
+  .work-card { height: auto; }
+  .card { border-radius: 12px; padding: 1rem; }
+  .settings-drawer {
+    top: auto; right: 0; bottom: 0; left: 0;
+    width: 100%;
+    height: min(88dvh, 720px);
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 18px 18px 0 0;
+    transform: translateY(110%);
+    box-shadow: 0 -24px 60px rgba(15, 23, 42, .22);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .settings-drawer.open { transform: translateY(0); }
+  .drawer-head { padding: 1rem 1rem .85rem; }
+  .drawer-body { padding: .95rem 1rem calc(1.5rem + env(safe-area-inset-bottom)); }
+  .work-card-head, .transcript-head { flex-direction: column; align-items: stretch; }
+  .control-card .work-card-head {
+    align-items: stretch;
+  }
+  .work-card h1, .work-card h2 { font-size: 1.2rem; }
+  .control-title { font-size: 1.85rem; }
+  .transcript-title { font-size: 1.75rem; }
+  #sbar.status-badge {
+    width: 100%;
+    justify-content: flex-start;
+    min-height: 44px;
+    padding: .5rem .7rem;
+    overflow: hidden;
+  }
+  .mode-grid { grid-template-columns: 1fr; gap: .65rem; }
+  .mode-card { min-height: 72px; padding: .8rem .9rem; }
+  .mode-card b { min-height: 0; font-size: .95rem; }
+  .mode-card span { font-size: .8rem; margin-top: .25rem; }
+  .toolbar-row, .record-actions { align-items: stretch; width: 100%; }
+  .record-actions { grid-template-columns: 1fr 1fr; gap: .6rem; }
+  .record-actions button { min-height: 48px; padding: .65rem .7rem; font-size: .9rem; }
+  .record-actions button, .export-actions button, button, input[type=text], input[type=password], select {
+    min-height: 44px;
+  }
+  #btn-backup { grid-column: 1 / -1; }
+  .transcript-card #tarea { flex-basis: auto; max-height: none; min-height: 360px; }
+  .transcript-head { padding: .9rem 1rem; }
+  .export-actions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+  }
+  .export-btn { padding: .4rem .35rem; font-size: .75rem; }
+  .guide { padding-left: 1rem; padding-right: 1rem; }
+  .guide-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: .75rem -1rem;
+    padding: 0 1rem;
+  }
+  .guide-table { min-width: 620px; }
+}
+
+/* Dark mode */
+[data-theme="dark"] {
+  --bg:           #0F172A;
+  --surface:      #1E293B;
+  --fg:           #F1F5F9;
+  --muted:        #94A3B8;
+  --border:       #334155;
+  --border-d:     #475569;
+  --accent-soft:  #0D2A26;
+  --accent-ring:  rgba(13,148,136,.3);
+  --accent-bdr:   #134E4A;
+  --danger-soft:  #2D1515;
+  --danger-bdr:   #7F1D1D;
+  --sh-sm:        0 1px 3px rgba(0,0,0,.4);
+  --sh-card:      0 4px 12px rgba(0,0,0,.3);
+  --sh-hover:     0 8px 20px rgba(0,0,0,.4);
+}
+[data-theme="dark"] .topbar { background: rgba(30, 41, 59, 0.85); }
+[data-theme="dark"] .drawer-head { background: rgba(30, 41, 59, .9); }
+[data-theme="dark"] .settings-backdrop { background: rgba(2, 6, 23, .55); }
+[data-theme="dark"] .bw { background: #2E2410; color: #FCD34D; border-color: #92400E; }
+[data-theme="dark"] .info-card { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .empty { background: var(--bg); border-color: var(--border); }
+[data-theme="dark"] #recover-bar { background: #1C1A0A; border-color: #92400E; color: #FCD34D; }
+[data-theme="dark"] .recover-btns .bp { background: var(--accent); }
+[data-theme="dark"] .recover-btns .bs { background: var(--surface); color: var(--fg); }
+[data-theme="dark"] #toast-info { background: rgba(15,23,42,.95); }
+[data-theme="dark"] .backup-reminder-backdrop { background: rgba(2, 6, 23, .55); }
+[data-theme="dark"] .changelog-backdrop { background: rgba(2, 6, 23, .60); }
+[data-theme="dark"] .cl-tag-new { background: #14532D; color: #86EFAC; }
+[data-theme="dark"] .cl-tag-fix { background: #422006; color: #FDE68A; }
+[data-theme="dark"] .quota-banner,
+[data-theme="dark"] #api-quota-hint {
+  color: #A7F3D0 !important;
+  background: rgba(20, 83, 76, .32) !important;
+  border-color: #2DD4BF !important;
+}
+[data-theme="dark"] .trust-card {
+  color: #CCFBF1;
+  background: rgba(20, 83, 76, .32);
+  border-color: #2DD4BF;
+}
+[data-theme="dark"] .trust-card b {
+  color: #5EEAD4;
+}
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<header class="topbar">
+  <div class="brand-wrap">
+    <div class="topbar-icon">
+      <svg viewBox="0 0 20 20">
+        <path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z"/>
+        <path d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.58 5.25 5.954V17.5h-2a.75.75 0 000 1.5h5.5a.75.75 0 000-1.5h-2v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z"/>
+      </svg>
+    </div>
+    <div>
+      <span class="topbar-name">漸字稿系統</span>
+      <span class="topbar-tag">免費 · 隱私優先</span>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <button id="btn-settings" onclick="openSettings()" class="bs header-btn" title="API / Audio Settings"><span aria-hidden="true">⚙️</span><span class="btn-label">API / Audio Settings</span></button>
+    <span class="changelog-badge" id="changelog-badge-wrap">
+      <button id="btn-changelog" onclick="openChangelog()" class="bs icon-btn" title="更新記錄">📋</button>
+    </span>
+    <button id="btn-theme" onclick="toggleTheme()" class="bs icon-btn" title="切換深色模式">🌙</button>
+  </div>
+</header>
+
+<div id="settings-backdrop" class="settings-backdrop" onclick="closeSettings()"></div>
+<aside id="settings-drawer" class="settings-drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <div>
+      <div class="slabel">⚙️ 設定</div>
+      <h2>API / Audio Settings</h2>
+    </div>
+    <button class="bs icon-btn" onclick="closeSettings()" title="關閉設定">×</button>
+  </div>
+  <div class="drawer-body">
+    <div class="settings-grid">
+      <div>
+        <div class="label-with-info">
+          <label for="api-key">Gemini API Key</label>
+          <div class="info-popover">
+            <details>
+              <summary><span class="info-icon" title="查看免費額度">ⓘ</span></summary>
+              <div class="info-card">
+                <b>免費額度重點：</b><br>
+                每日約 <b>500 次/天</b> API 呼叫。系統會以較短分段送出，降低長音訊造成重複轉錄的機率。
+              </div>
+            </details>
+          </div>
+        </div>
+        <input type="password" id="api-key" placeholder="貼上你的 Gemini API Key">
+        <label class="remember-key" for="remember-api-key">
+          <input type="checkbox" id="remember-api-key">
+          <span>記住 API Key</span>
+        </label>
+        <div class="field-hint">僅儲存在此瀏覽器；未勾選時，關閉頁面後即不保留。</div>
+      </div>
+      <div>
+        <label for="language">收音語言</label>
+        <select id="language">
+          <option value="auto" selected>自動偵測</option>
+          <option value="繁體中文">繁體中文</option>
+          <option value="英文">英文</option>
+          <option value="日文">日文</option>
+          <option value="韓文">韓文</option>
+          <option value="泰文">泰文</option>
+          <option value="越南文">越南文</option>
+          <option value="菲律賓文">菲律賓文</option>
+        </select>
+      </div>
+      <div>
+        <label for="translate-to">漸字稿翻譯</label>
+        <select id="translate-to">
+          <option value="">不翻譯</option>
+          <option value="繁體中文">繁體中文</option>
+          <option value="英文">英文</option>
+          <option value="日文">日文</option>
+          <option value="韓文">韓文</option>
+          <option value="泰文">泰文</option>
+          <option value="越南文">越南文</option>
+          <option value="菲律賓文">菲律賓文</option>
+        </select>
+      </div>
+      <div>
+        <div class="label-with-info">
+          <label for="chunk-min">轉錄間隔</label>
+          <div class="info-popover">
+            <details>
+              <summary><span class="info-icon" title="點擊查看換算說明">ⓘ</span></summary>
+              <div class="info-card">
+                <b>換算基準說明：</b><br>
+                建議 5 分鐘（Teams / Zoom 會議）；多人重疊或重要會議可選 3 分鐘。間隔越短越穩、API 次數越多；若音訊接近 API 上限，系統會提前送出。
+              </div>
+            </details>
+          </div>
+        </div>
+        <select id="chunk-min" onchange="updateQuotaHint()">
+          <option value="1">1 分鐘 — 最高穩定，最耗額度</option>
+          <option value="2">2 分鐘 — 很穩，耗額度較高</option>
+          <option value="3">3 分鐘 — 很穩</option>
+          <option value="4">4 分鐘 — 穩定</option>
+          <option value="5" selected>5 分鐘 — Teams 會議建議</option>
+          <option value="6">6 分鐘</option>
+          <option value="7">7 分鐘</option>
+          <option value="8">8 分鐘</option>
+          <option value="9">9 分鐘</option>
+          <option value="10">10 分鐘</option>
+        </select>
+      </div>
+    </div>
+    <div id="api-quota-hint" class="quota-banner"></div>
+  </div>
+</aside>
+
+<!-- Recovery bar -->
+<div id="recover-bar">
+  <span id="recover-msg">偵測到上次未完成的錄音，可先存成備份檔。</span>
+  <div class="recover-btns">
+    <button class="bp" onclick="recoverSession()">存成備份</button>
+    <button class="bs" onclick="discardSession()">捨棄</button>
+  </div>
+</div>
+
+<div id="backup-reminder" class="backup-reminder-backdrop" role="dialog" aria-modal="true" aria-labelledby="backup-reminder-title">
+  <div class="backup-reminder-modal">
+    <h2 id="backup-reminder-title">建議先選擇備份資料夾</h2>
+    <p>長時間錄音時，系統會將已完成的漸字稿自動寫入本機檔案。未選擇也可以繼續錄音。</p>
+    <div class="backup-reminder-actions">
+      <button class="bp" onclick="chooseBackupThenStart()">選擇資料夾</button>
+      <button class="bs" onclick="skipBackupAndStart()">略過並開始</button>
+    </div>
+  </div>
+</div>
+
+<div id="changelog-backdrop" class="changelog-backdrop" onclick="handleChangelogBackdropClick(event)" role="dialog" aria-modal="true" aria-labelledby="changelog-title">
+  <div class="changelog-modal" id="changelog-modal">
+    <div class="changelog-modal-head">
+      <h2 id="changelog-title">📋 更新記錄</h2>
+      <button class="bs icon-btn" onclick="closeChangelog()" title="關閉">×</button>
+    </div>
+    <div id="changelog-body"></div>
+  </div>
+</div>
+
+<!-- Main content -->
+<main class="main">
+  <div class="workspace-grid">
+    <!-- 控制台卡片 -->
+    <section class="card work-card control-card">
+    <div class="work-card-head">
+      <div>
+        <h1 class="control-title">🎙️ 收音控制</h1>
+      </div>
+      <div id="sbar" class="status-badge">
+        <div id="sdot"></div>
+        <span id="stext">尚未開始</span>
+        <span id="recording-timer">00:00:00</span>
+        <span id="recording-size"></span>
+      </div>
+    </div>
+    <div class="btn-group-section">
+      <div>
+        <span class="sub-label">選擇收音模式</span>
+        <div class="mode-grid" role="radiogroup" aria-label="收音模式">
+          <button class="mode-card active" id="btn-mic" onclick="selectMode('mic')" aria-pressed="true">
+            <b>🎙 僅收麥克風</b>
+            <span>適合現場發言與口述記錄 · 建議 10 分鐘切段</span>
+          </button>
+          <button class="mode-card" id="btn-screen" onclick="selectMode('screen')" aria-pressed="false">
+            <b>🖥 僅收分頁音訊</b>
+            <span>適合 YouTube、Podcast 等影音播放 · 建議 10 分鐘切段</span>
+          </button>
+          <button class="mode-card" id="btn-mixed" onclick="selectMode('mixed')" aria-pressed="false">
+            <b>🎙＋🖥 麥克風＋分頁音訊</b>
+            <span>適合線上會議與雙向對話 · 建議 5 分鐘切段</span>
+          </button>
+          <button class="mode-card" id="btn-teams" onclick="selectMode('teams')" aria-pressed="false">
+            <b>🎯 Teams / Zoom 會議 <span class="mode-rec-badge">推薦</span></b>
+            <span>麥克風＋分頁音訊，自動套用 3 分鐘切段，最適合雙向線上會議</span>
+          </button>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <div>
+        <span class="sub-label">錄音動作</span>
+        <div class="toolbar-row">
+          <div class="record-actions">
+            <button class="bp" id="btn-start" onclick="startSelectedMode()">● 開始收音</button>
+            <button class="bd" id="btn-stop"   onclick="stopRecording()" disabled>■ 停止收音</button>
+            <button class="bw" id="btn-mute"   onclick="toggleMicMute()" style="display:none">🔇 靜音麥克風</button>
+            <button class="bs" onclick="clearTranscript()">清除記錄</button>
+            <button class="bs" id="btn-backup" onclick="chooseBackupFolder()">💾 選擇備份資料夾</button>
+          </div>
+        </div>
+      </div>
+      <div id="backup-status" style="font-size:.75rem;color:var(--muted);margin-top:.45rem;line-height:1.5;">
+        尚未啟用本機備份；啟用後每場錄音會自動建立獨立備份檔
+      </div>
+    </div>
+
+    <div class="note-simple">
+      💡 <b>錄音提示：</b> 錄製網頁音訊請選「分頁」並勾選「共享分頁音訊」。詳細平台設定請參閱下方使用說明。
+    </div>
+    </section>
+
+    <section class="card work-card transcript-card">
+    <div class="work-card-head transcript-head">
+      <div>
+        <h2 class="transcript-title">漸字稿顯示區</h2>
+      </div>
+      <div class="export-actions">
+        <button class="bg export-btn" id="btn-copy" onclick="copyTranscript()" disabled>Copy</button>
+        <button class="bg export-btn" id="btn-download-md" onclick="downloadTranscript()" disabled>↓ .md</button>
+        <button class="bg export-btn" id="btn-download-srt" onclick="downloadSRT()" disabled>↓ .srt</button>
+        <button class="bg export-btn" id="btn-download-txt" onclick="downloadTXT()" disabled>↓ .txt</button>
+      </div>
+    </div>
+    <div id="tarea">
+      <div class="empty">開始收音後，轉錄完成的內容會陸續顯示在這裡</div>
+    </div>
+    </section>
+  </div>
+
+  <!-- 使用說明：三層資訊分層結構 -->
+  <details>
+    <summary>📖 使用說明與隱私承諾</summary>
+    <div class="guide">
+      
+      <!-- 🔒 核心信任賣點（保留並精簡） -->
+      <h3>隱私與安全承諾</h3>
+      <div class="trust-badges">
+        <div class="trust-card">
+          <b>🔑 Key 僅存於瀏覽器</b>
+          API Key 只保存在你的瀏覽器 localStorage，不留存於伺服器；可隨時在設定中清空。
+        </div>
+        <div class="trust-card">
+          <b>🛡️ 直連 Google 官方 API</b>
+          音訊資料直傳 Gemini API，完全不經過任何第三方或自架伺服器轉接。
+        </div>
+        <div class="trust-card">
+          <b>🎁 完全免費額度</b>
+          使用 Gemini 官方免費額度即可運作，每日提供高額免費轉錄次數。
+        </div>
+      </div>
+
+      <!-- 📌 第一層：預設可見的核心內容 -->
+      
+      <!-- 1. API Key 取得 -->
+      <h3>1. 快速開始</h3>
+      <p style="color: var(--fg); margin-bottom: .5rem;">
+        前往 <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--accent); font-weight: 600; text-decoration: underline;">Google AI Studio</a> 免費申請 API Key，貼入上方設定欄位即可使用。
+      </p>
+
+      <!-- 2. 三種模式三欄簡表 -->
+      <h3>2. 收音模式說明</h3>
+      <div class="guide-table-wrap">
+        <table class="guide-table">
+          <thead>
+            <tr>
+              <th>模式</th>
+              <th>收音內容</th>
+              <th>適合場合</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>🎙️ 只收麥克風</b></td>
+              <td>現場環境音 / 人聲</td>
+              <td>個人口述筆記、現場演講、實體會議</td>
+            </tr>
+            <tr>
+              <td><b>🖥️ 只收分頁音訊</b></td>
+              <td>瀏覽器單一分頁聲音</td>
+              <td>YouTube 影片、Podcast、網頁廣播</td>
+            </tr>
+            <tr>
+              <td><b>🎙️＋🖥️ 麥克風＋分頁</b></td>
+              <td>雙向聲音（自己＋網頁）</td>
+              <td>線上會議（Teams / Zoom）、網頁雙向對話</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3. 選什麼才有聲音 Quick Checklist -->
+      <h3>3. 「選什麼才有聲音」快速對照</h3>
+      <ul style="color: var(--fg);">
+        <li><b>YouTube / 線上影片</b>：選擇「只收分頁」→ 彈窗中勾選「共享分頁音訊」。</li>
+        <li><b>Teams / Zoom 會議</b>：選擇「麥克風＋分頁」→ 彈窗中選擇「整個螢幕」並勾選「共享系統音訊」。</li>
+      </ul>
+
+      <!-- 4. 本機備份說明 -->
+      <h3>4. 本機備份說明</h3>
+      <ul style="color: var(--fg);">
+        <li><b>開始前選擇備份資料夾</b>：每場錄音會建立獨立 .md 備份檔，錄音期間持續更新。</li>
+        <li><b>錄音後才選擇</b>：只會從目前已完成轉錄並顯示的內容開始備份；尚未轉錄完成的音訊不會另存。</li>
+        <li><b>停止後仍有轉錄中的段落</b>：完成後會繼續寫入同一場備份檔。</li>
+        <li><b>未選擇資料夾</b>：文字會暫存在瀏覽器，之後可存成備份或捨棄。</li>
+      </ul>
+
+      <!-- 📂 第二層：收合區塊（系統差異與 FAQ） -->
+      <details class="sub-details">
+        <summary>💻 Windows / macOS 系統選擇細節（點擊展開）</summary>
+        <div class="sub-content">
+          <ul>
+            <li><b>Windows 用戶</b>：支援分享「整個螢幕」並同時擷取系統聲音，桌面版會議軟體（Teams/Zoom/Google Meet）皆可順暢收音。</li>
+            <li><b>macOS 用戶</b>：因系統權限限制，建議將 Teams / Zoom 改用<b>瀏覽器網頁版</b>開啟，並選擇「分頁」收音才能成功抓取對方聲音。</li>
+          </ul>
+        </div>
+      </details>
+
+      <details class="sub-details">
+        <summary>❓ 常見問題 QA（點擊展開）</summary>
+        <div class="sub-content">
+          <div class="qa">
+            <b>Q：沒有聲音時會產生文字嗎？</b>
+            系統會先偵測每段音訊是否有明確語音；若未偵測到聲音，會顯示「此段未偵測到明確語音」，並略過 API 轉錄。
+          </div>
+          <div class="qa">
+            <b>Q：為什麼轉出的文字沒有聲音？</b>
+            請確認分享螢幕或分頁時，有勾選對話框左下角或下方的「共享音訊 / 分享系統聲音」核取方塊。
+          </div>
+          <div class="qa">
+            <b>Q：錄音到一半會中斷嗎？</b>
+            當單段錄音達到你設定的「轉錄間隔」，或音訊接近 API 上限時，系統會自動在背景送出一段轉錄並繼續錄音，確保長會議也不中斷。
+          </div>
+        </div>
+      </details>
+
+      <!-- ❌ 第三層：已完全剔除（Gemini 模型名稱、音訊換算技術細節等，保持介面清爽） -->
+
+    </div>
+  </details>
+
+</main>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let recorder       = null;
+let activeStream   = null;
+let extraStreams    = [];   // raw mic/screen streams kept for cleanup in mixed mode
+let activeAudioCtx = null; // AudioContext used in mixed mode
+let micTrackRef    = null; // mic track reference for mute toggle
+let isRecording    = false;
+let pendingChunks  = [];
+let recordingSize  = 0;
+let autoFlushing   = false;
+let sessionSegs    = [];
+let recordingSessions = [];
+let currentRecordingSession = null;
+let chunkIdx       = 0;
+let pendingApiCount  = 0;   // in-flight Gemini API calls
+let nextDisplaySeg   = 1;   // next segment number to render (for ordering)
+let segResultBuffer  = {};  // segNum → result, held until prior segments arrive
+let selectedMode     = 'mic';
+let lastStatusMsg    = '尚未開始';
+let recordingTimer   = null;
+let initialFeedbackTimer = null;
+
+// ── Anti-repetition adaptive state ────────────────────────────────────────
+let adaptiveChunkMin  = null; // temporary chunk override triggered by repetition
+let adaptiveSegsLeft  = 0;    // remaining segments with adaptive chunk
+
+// ── Feature 2: timing state ────────────────────────────────────────────────
+let recordingStartMs = 0;   // Date.now() when beginRecording() was called
+let chunkStartMs     = 0;   // Date.now() when current chunk's recorder.start() was called
+let silenceAudioCtx  = null;
+let silenceAnalyser  = null;
+let silenceSource    = null;
+let silenceTimer     = null;
+let lastAudibleAt    = 0;
+let silenceWarned    = false;
+let chunkHadAudio    = false;
+let chunkAudioSamples = 0;
+
+const SILENCE_WARNING_MS = 15000;
+const SILENCE_RMS_THRESHOLD = 0.012;
+const SILENCE_PEAK_THRESHOLD = 0.08;
+const MIN_SILENCE_SAMPLES = 4;
+const MAX_CHUNK_BYTES = 18 * 1024 * 1024;
+const INITIAL_FEEDBACK_MS = 15 * 1000;
+
+// ── Feature 3: API wait timer state ───────────────────────────────────────
+let _apiWaitTimer = null;
+let _apiWaitStart = 0;
+
+// ── IndexedDB auto-save state ──────────────────────────────────────────────
+let idb              = null;  // IndexedDB instance (null = unavailable)
+let currentSessionId = null;
+let currentMode      = '';
+let autosaveTimer    = null;
+let recoverCandidates = [];   // unfinished sessions found on load
+
+// ── Local file backup state ───────────────────────────────────────────────
+let backupDirHandle  = null;  // File System Access API directory handle, chosen by user
+let backupTimer      = null;
+let backupInterval   = null;
+let backupWriting    = false;
+let backupDirty      = false;
+let backupReminderDismissed = false;
+
+// ── IndexedDB helpers ──────────────────────────────────────────────────────
+const IDB_NAME    = 'transcript-autosave';
+const IDB_VER     = 1;
+const IDB_STORE   = 'sessions';
+const IDB_MAX     = 5;
+const API_KEY_STORAGE = 'transcript-api-key';
+
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(IDB_NAME, IDB_VER);
+    req.onupgradeneeded = e => {
+      const store = e.target.result.createObjectStore(IDB_STORE, { keyPath: 'id' });
+      store.createIndex('updatedAt', 'updatedAt');
+    };
+    req.onsuccess = e => res(e.target.result);
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+function idbAll() {
+  return new Promise((res, rej) => {
+    if (!idb) return res([]);
+    const req = idb.transaction(IDB_STORE, 'readonly')
+                   .objectStore(IDB_STORE).getAll();
+    req.onsuccess = e => res(e.target.result || []);
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+function idbPut(data) {
+  return new Promise((res, rej) => {
+    if (!idb) return res();
+    const req = idb.transaction(IDB_STORE, 'readwrite')
+                   .objectStore(IDB_STORE).put(data);
+    req.onsuccess = () => res();
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+function idbDelete(id) {
+  return new Promise((res, rej) => {
+    if (!idb) return res();
+    const req = idb.transaction(IDB_STORE, 'readwrite')
+                   .objectStore(IDB_STORE).delete(id);
+    req.onsuccess = () => res();
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+async function idbPrune() {
+  try {
+    const all = await idbAll();
+    const sorted = all.sort((a, b) => b.updatedAt - a.updatedAt);
+    for (const s of sorted.slice(IDB_MAX)) await idbDelete(s.id);
+  } catch (_) {}
+}
+
+// ── Auto-save trigger (debounced 2s) ──────────────────────────────────────
+function scheduleAutosave() {
+  if (!idb || !currentSessionId) return;
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(async () => {
+    try {
+      await idbPut({
+        id:        currentSessionId,
+        recordingSessions,
+        segs:      sessionSegs,
+        mode:      currentMode,
+        updatedAt: Date.now(),
+        finished:  false,
+      });
+      await idbPrune();
+    } catch (_) {}
+  }, 2000);
+}
+
+// ── Mark session finished (clear from DB) ─────────────────────────────────
+async function finishSession() {
+  clearTimeout(autosaveTimer);
+  if (!idb || !currentSessionId) return;
+  try { await idbDelete(currentSessionId); } catch (_) {}
+}
+
+function formatSessionClock(ts) {
+  if (!ts) return '進行中';
+  return new Date(ts).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatSessionDuration(ms) {
+  if (!ms || ms < 0) return '尚未結束';
+  const totalMin = Math.max(1, Math.round(ms / 60000));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h && m) return `${h} 小時 ${m} 分鐘`;
+  if (h) return `${h} 小時`;
+  return `${m} 分鐘`;
+}
+
+function displayModeLabel(mode) {
+  if (mode === '麥克風') return '🎙 僅收麥克風';
+  if (mode === '分頁音訊') return '🖥 僅收分頁音訊';
+  if (mode === '麥克風＋分頁') return '🎙＋🖥 麥克風＋分頁音訊';
+  return mode || '收音模式未記錄';
+}
+
+function sessionDuration(session) {
+  if (session.duration != null) return session.duration;
+  if (session.startedAt && session.stoppedAt) return session.stoppedAt - session.startedAt;
+  return null;
+}
+
+function ensureTranscriptAreaReady() {
+  const area = document.getElementById('tarea');
+  const empty = area.querySelector('.empty');
+  if (empty) empty.remove();
+  return area;
+}
+
+function createRecordingSession(startedAt = Date.now()) {
+  const session = {
+    id: `rec_${startedAt}_${recordingSessions.length + 1}`,
+    startedAt,
+    stoppedAt: null,
+    mode: currentMode,
+    duration: null,
+    initialFeedbackFlushed: false,
+    segments: [],
+  };
+  recordingSessions.push(session);
+  currentRecordingSession = session;
+  recordingStartMs = startedAt;
+  chunkStartMs = startedAt;
+  updateRecordingTimer();
+  renderRecordingSessionShell(session);
+  scheduleAutosave();
+  scheduleFileBackup();
+  return session;
+}
+
+function markCurrentRecordingSessionStopped(stoppedAt = Date.now()) {
+  if (!currentRecordingSession || currentRecordingSession.stoppedAt) return;
+  currentRecordingSession.stoppedAt = stoppedAt;
+  currentRecordingSession.duration = stoppedAt - currentRecordingSession.startedAt;
+  updateRecordingSessionHeader(currentRecordingSession);
+  scheduleAutosave();
+  scheduleFileBackup();
+}
+
+function renderRecordingSessionShell(session) {
+  const area = ensureTranscriptAreaReady();
+  let el = document.getElementById(session.id);
+  if (el) return el;
+
+  el = document.createElement('section');
+  el.className = 'recording-session';
+  el.id = session.id;
+
+  const head = document.createElement('div');
+  head.className = 'recording-session-head';
+
+  const title = document.createElement('div');
+  title.className = 'recording-session-title';
+
+  const meta = document.createElement('div');
+  meta.className = 'recording-session-meta';
+
+  const body = document.createElement('div');
+  body.className = 'recording-session-body';
+
+  head.appendChild(title);
+  head.appendChild(meta);
+  el.appendChild(head);
+  el.appendChild(body);
+  area.appendChild(el);
+  updateRecordingSessionHeader(session);
+  return el;
+}
+
+function updateRecordingSessionHeader(session) {
+  const el = document.getElementById(session.id);
+  if (!el) return;
+  const idx = recordingSessions.indexOf(session) + 1;
+  const title = el.querySelector('.recording-session-title');
+  const meta = el.querySelector('.recording-session-meta');
+  if (title) title.textContent = `錄音紀錄 ${idx}`;
+  if (meta) {
+    const start = formatSessionClock(session.startedAt);
+    const end = session.stoppedAt ? formatSessionClock(session.stoppedAt) : '進行中';
+    const duration = formatSessionDuration(sessionDuration(session));
+    meta.textContent = `${start}–${end} · ${duration} · ${displayModeLabel(session.mode)}`;
+  }
+}
+
+function renderAllRecordingSessions() {
+  const area = document.getElementById('tarea');
+  area.innerHTML = '';
+  if (!recordingSessions.length) {
+    area.innerHTML = '<div class="empty">開始收音後，轉錄完成的內容會陸續顯示在這裡</div>';
+    return;
+  }
+
+  const previousCurrent = currentRecordingSession;
+  sessionSegs = [];
+  recordingSessions.forEach(session => {
+    renderRecordingSessionShell(session);
+    const recoveredSegments = (session.segments || []).slice();
+    session.segments = [];
+    recoveredSegments.forEach(s => _renderSeg(s.time, s.text, s.translation, s.isError, s.startSec, s.endSec, session));
+    updateRecordingSessionHeader(session);
+  });
+  currentRecordingSession = previousCurrent;
+}
+
+// ── Recover / discard ─────────────────────────────────────────────────────
+function getRecoveredSessions(target) {
+  const recoveredSessions = Array.isArray(target.recordingSessions)
+    ? target.recordingSessions.map((s, i) => ({
+        id: s.id || `rec_recovered_${i + 1}`,
+        startedAt: s.startedAt || target.updatedAt || Date.now(),
+        stoppedAt: s.stoppedAt || null,
+        mode: s.mode || target.mode || '',
+        duration: s.duration ?? (s.startedAt && s.stoppedAt ? s.stoppedAt - s.startedAt : null),
+        initialFeedbackFlushed: !!s.initialFeedbackFlushed,
+        segments: Array.isArray(s.segments) ? s.segments : [],
+      }))
+    : [];
+  if (!recoveredSessions.length && Array.isArray(target.segs) && target.segs.length) {
+    recoveredSessions.push({
+      id: `rec_recovered_${target.updatedAt || Date.now()}`,
+      startedAt: target.updatedAt || Date.now(),
+      stoppedAt: target.updatedAt || null,
+      mode: target.mode || '',
+      duration: null,
+      initialFeedbackFlushed: true,
+      segments: target.segs,
+    });
+  }
+  return recoveredSessions;
+}
+
+async function recoverSession() {
+  document.getElementById('recover-bar').classList.remove('show');
+  if (!recoverCandidates.length) return;
+  if (!backupDirHandle) {
+    await chooseBackupFolder();
+    if (!backupDirHandle) {
+      document.getElementById('recover-bar').classList.add('show');
+      return;
+    }
+  }
+
+  const remaining = [];
+  let savedCount = 0;
+  let failedCount = 0;
+  for (const target of recoverCandidates) {
+    const recoveredSessions = getRecoveredSessions(target);
+    try {
+      if (!recoveredSessions.length) {
+        await idbDelete(target.id);
+        savedCount++;
+        continue;
+      }
+      for (let i = 0; i < recoveredSessions.length; i++) {
+        const session = recoveredSessions[i];
+        const fileName = `復原_${backupFileNameForSession(session, i + 1)}`;
+        const fileHandle = await backupDirHandle.getFileHandle(fileName, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(buildRecordingSessionMarkdown(session, '復原備份', i + 1));
+        await writable.close();
+      }
+      await idbDelete(target.id);
+      savedCount++;
+    } catch (e) {
+      failedCount++;
+      remaining.push(target);
+      setBackupStatus(`復原備份部分失敗，請重新選擇資料夾：${e.message}`, true);
+    }
+  }
+  recoverCandidates = remaining;
+  if (savedCount) {
+    status(`已將 ${savedCount} 筆上次未完成的逐字稿存成備份檔`, 'done');
+    if (!failedCount) setBackupStatus(`已存成復原備份，上次備份：${formatBackupTime()}`);
+  }
+  if (recoverCandidates.length) {
+    document.getElementById('recover-bar').classList.add('show');
+  }
+}
+
+async function discardSession() {
+  document.getElementById('recover-bar').classList.remove('show');
+  for (const s of recoverCandidates) {
+    try { await idbDelete(s.id); } catch (_) {}
+  }
+  recoverCandidates = [];
+}
+
+// ── Local Markdown backup ─────────────────────────────────────────────────
+function timestampForFile(ts = Date.now()) {
+  const now = new Date(ts);
+  const pad = n => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+}
+
+function backupFileNameForSession(session, index = recordingSessions.indexOf(session) + 1) {
+  return `逐字稿_${timestampForFile(session?.startedAt || Date.now())}_錄音紀錄${Math.max(1, index)}.md`;
+}
+
+function formatBackupTime(date = new Date()) {
+  return date.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function buildTranscriptMarkdown(stateLabel = '') {
+  const today = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
+  const lines = [
+    `# 逐字稿 ${today}`,
+    '',
+    `備份狀態：${stateLabel || (isRecording ? '錄音中' : '已停止')}`,
+    `最後備份：${formatBackupTime()}`,
+    `收音模式：${currentMode || '尚未開始'}`,
+    '',
+    '---',
+    '',
+  ];
+
+  const sessions = recordingSessions.length
+    ? recordingSessions
+    : (sessionSegs.length ? [{
+        id: 'legacy',
+        startedAt: null,
+        stoppedAt: null,
+        mode: currentMode,
+        duration: null,
+        segments: sessionSegs,
+      }] : []);
+
+  if (!sessions.length) {
+    lines.push('（尚無逐字稿內容）', '');
+    return lines.join('\n');
+  }
+
+  sessions.forEach((session, i) => {
+    if (i > 0) lines.push('---', '');
+    lines.push(`## 錄音紀錄 ${i + 1}`, '');
+    lines.push(`${formatSessionClock(session.startedAt)}–${session.stoppedAt ? formatSessionClock(session.stoppedAt) : '進行中'} · ${formatSessionDuration(sessionDuration(session))} · ${displayModeLabel(session.mode)}`, '');
+    (session.segments || []).forEach(s => {
+      if (s.isError) {
+        lines.push('> ⚠️ [此段轉錄失敗，內容遺失]', '');
+        return;
+      }
+      lines.push(s.text || '', '');
+      if (s.translation) {
+        lines.push(`> ${s.translation.replace(/\n/g, '\n> ')}`, '');
+      }
+    });
+  });
+  return lines.join('\n');
+}
+
+function buildRecordingSessionMarkdown(session, stateLabel = '', explicitIndex = null) {
+  const idx = explicitIndex || Math.max(1, recordingSessions.indexOf(session) + 1);
+  const lines = [
+    `# 錄音紀錄 ${idx}`,
+    '',
+    `備份狀態：${stateLabel || (isRecording ? '錄音中' : '已停止')}`,
+    `最後備份：${formatBackupTime()}`,
+    `${formatSessionClock(session.startedAt)}–${session.stoppedAt ? formatSessionClock(session.stoppedAt) : '進行中'} · ${formatSessionDuration(sessionDuration(session))} · ${displayModeLabel(session.mode)}`,
+    '',
+    '---',
+    '',
+  ];
+
+  const segs = session.segments || [];
+  if (!segs.length) {
+    lines.push('（尚無逐字稿內容）', '');
+    return lines.join('\n');
+  }
+
+  segs.forEach(s => {
+    if (s.isError) {
+      lines.push('> ⚠️ [此段轉錄失敗，內容遺失]', '');
+      return;
+    }
+    lines.push(s.text || '', '');
+    if (s.translation) {
+      lines.push(`> ${s.translation.replace(/\n/g, '\n> ')}`, '');
+    }
+  });
+  return lines.join('\n');
+}
+
+function setBackupStatus(text, isError = false) {
+  const el = document.getElementById('backup-status');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = isError ? 'var(--danger)' : 'var(--muted)';
+}
+
+async function chooseBackupFolder() {
+  if (!window.showDirectoryPicker || !window.isSecureContext) {
+    setBackupStatus('此瀏覽器不支援自動寫入本機資料夾；請改用 Chrome / Edge。', true);
+    showToast('此瀏覽器不支援本機備份資料夾');
+    return;
+  }
+  try {
+    backupDirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    if (currentRecordingSession) {
+      await writeBackupFile('備份已啟用');
+      setBackupStatus('已啟用本機備份，會從目前已完成的漸字稿開始寫入本場錄音備份檔。');
+    } else {
+      setBackupStatus('已啟用本機備份；每場錄音會自動建立獨立 Markdown 備份檔。');
+    }
+    startBackupInterval();
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      setBackupStatus('尚未啟用本機備份');
+      return;
+    }
+    setBackupStatus(`備份資料夾設定失敗：${e.message}`, true);
+  }
+}
+
+const chooseBackupFile = chooseBackupFolder;
+
+function scheduleFileBackup() {
+  if (!backupDirHandle || !currentRecordingSession) return;
+  backupDirty = true;
+  clearTimeout(backupTimer);
+  backupTimer = setTimeout(() => writeBackupFile(), 1200);
+}
+
+async function writeBackupFile(stateLabel = '') {
+  if (!backupDirHandle || !currentRecordingSession) return;
+  if (backupWriting) {
+    backupDirty = true;
+    return;
+  }
+  backupWriting = true;
+  backupDirty = false;
+  try {
+    if (!currentRecordingSession.backupFileName) {
+      currentRecordingSession.backupFileName = backupFileNameForSession(currentRecordingSession);
+    }
+    const fileHandle = await backupDirHandle.getFileHandle(currentRecordingSession.backupFileName, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(buildRecordingSessionMarkdown(currentRecordingSession, stateLabel));
+    await writable.close();
+    setBackupStatus(`已啟用本機備份，${currentRecordingSession.backupFileName} 上次備份：${formatBackupTime()}`);
+  } catch (e) {
+    setBackupStatus(`備份失敗，請重新選擇資料夾：${e.message}`, true);
+    backupDirHandle = null;
+    stopBackupInterval();
+  } finally {
+    backupWriting = false;
+    if (backupDirty) scheduleFileBackup();
+  }
+}
+
+function startBackupInterval() {
+  if (!backupDirHandle || backupInterval) return;
+  backupInterval = setInterval(() => {
+    if (backupDirHandle && currentRecordingSession && (isRecording || pendingApiCount > 0)) writeBackupFile();
+  }, 30000);
+}
+
+function stopBackupInterval() {
+  if (backupInterval) {
+    clearInterval(backupInterval);
+    backupInterval = null;
+  }
+}
+
+// ── UI helpers ─────────────────────────────────────────────────────────────
+function dot(cls) {
+  document.getElementById('sdot').className = cls || '';
+}
+function status(msg, cls) {
+  lastStatusMsg = msg;
+  document.getElementById('stext').textContent = msg;
+  dot(cls || '');
+}
+
+function setRecordingSizeLabel(value = '') {
+  const el = document.getElementById('recording-size');
+  if (el) el.textContent = value;
+}
+
+let _toastTimer = null;
+function showToast(msg, duration = 3500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), duration);
+}
+
+let _toastInfoTimer = null;
+function showInfoToast(msg, duration = 2500) {
+  const el = document.getElementById('toast-info');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastInfoTimer);
+  _toastInfoTimer = setTimeout(() => el.classList.remove('show'), duration);
+}
+
+function setBtns(recording) {
+  ['btn-mic', 'btn-screen', 'btn-mixed', 'btn-teams', 'btn-start'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = recording;
+  });
+  document.getElementById('btn-stop').disabled = !recording;
+  ['api-key', 'language', 'translate-to', 'chunk-min'].forEach(id =>
+    document.getElementById(id).disabled = recording
+  );
+  updateModeCards();
+  updateExportButtons();
+}
+
+function openSettings(focusKey = true) {
+  document.getElementById('settings-backdrop').classList.add('show');
+  const drawer = document.getElementById('settings-drawer');
+  drawer.classList.add('open');
+  drawer.setAttribute('aria-hidden', 'false');
+  if (focusKey) setTimeout(() => document.getElementById('api-key')?.focus(), 180);
+}
+
+function closeSettings() {
+  document.getElementById('settings-backdrop').classList.remove('show');
+  const drawer = document.getElementById('settings-drawer');
+  drawer.classList.remove('open');
+  drawer.setAttribute('aria-hidden', 'true');
+}
+
+// ── Changelog ──────────────────────────────────────────────────────────────
+const CL_VERSION  = '1.2';
+const CL_SEEN_KEY = 'transcript-changelog-seen';
+const CHANGELOG = [
+  {
+    version: '1.2', date: '2026-08-27',
+    items: [
+      { tag: 'new', text: '新增 Teams / Zoom 專用模式，點選後自動套用 3 分鐘切段設定，適合多人線上會議。' },
+      { tag: 'new', text: '每段錄音改用狀態卡片呈現（錄音中 → 校正中 → 已定稿），各模式顯示方式一致。' },
+      { tag: 'new', text: '偵測到重複輸出時，自動重試一次；若仍重複，下 2 段自動縮短轉錄間隔。' },
+      { tag: 'ux',  text: '各錄音模式按鈕點選後，自動切換到建議的轉錄間隔（麥克風 10 分鐘、會議模式 3–5 分鐘）。' },
+      { tag: 'new', text: '新增本頁更新記錄說明，方便確認目前版本功能。' },
+    ]
+  },
+  {
+    version: '1.1', date: '2026-08-19',
+    items: [
+      { tag: 'fix', text: '修正字元對照表（charMap）重複鍵值，避免繁簡轉換不穩定。' },
+      { tag: 'fix', text: '移除備用模型清單中與主模型重複的項目，降低不必要 API 呼叫。' },
+      { tag: 'ux',  text: '預設轉錄間隔從 10 分鐘改為 5 分鐘，提升 Teams 會議穩定性。' },
+    ]
+  },
+  {
+    version: '1.0', date: '2026-08-01',
+    items: [
+      { tag: 'new', text: '初版發布：單頁瀏覽器錄音 + Gemini API 逐字稿系統。' },
+      { tag: 'new', text: '支援麥克風、分頁音訊、混合模式三種收音方式。' },
+      { tag: 'new', text: '可匯出 Markdown、SRT、TXT，並支援本機資料夾自動備份。' },
+    ]
+  }
+];
+
+function renderChangelog() {
+  const body = document.getElementById('changelog-body');
+  const tagClass = { new: 'cl-tag-new', fix: 'cl-tag-fix', ux: 'cl-tag-ux' };
+  const tagLabel = { new: 'NEW', fix: 'FIX', ux: 'UX' };
+  body.innerHTML = CHANGELOG.map(entry => `
+    <div class="cl-entry">
+      <div class="cl-version-row">
+        <span class="cl-version-tag">v${entry.version}</span>
+        <span class="cl-date">${entry.date}</span>
+      </div>
+      ${entry.items.map(item => `
+        <div class="cl-item">
+          <span class="cl-tag ${tagClass[item.tag] || ''}">${tagLabel[item.tag] || item.tag}</span>
+          <span>${item.text}</span>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+function openChangelog() {
+  renderChangelog();
+  document.getElementById('changelog-backdrop').classList.add('show');
+  localStorage.setItem(CL_SEEN_KEY, CL_VERSION);
+  document.getElementById('changelog-badge-wrap').classList.remove('has-update');
+}
+
+function closeChangelog() {
+  document.getElementById('changelog-backdrop').classList.remove('show');
+}
+
+function handleChangelogBackdropClick(e) {
+  if (e.target === document.getElementById('changelog-backdrop')) closeChangelog();
+}
+
+function initChangelog() {
+  if (localStorage.getItem(CL_SEEN_KEY) !== CL_VERSION) {
+    document.getElementById('changelog-badge-wrap').classList.add('has-update');
+    // Auto-open on first visit
+    if (!localStorage.getItem(CL_SEEN_KEY)) {
+      setTimeout(openChangelog, 600);
+    }
+  }
+}
+// ── End Changelog ───────────────────────────────────────────────────────────
+
+const MODE_INTERVALS = { mic: '10', screen: '10', mixed: '5', teams: '3' };
+const MODE_BTN_IDS   = { mic: 'btn-mic', screen: 'btn-screen', mixed: 'btn-mixed', teams: 'btn-teams' };
+
+function selectMode(mode) {
+  if (isRecording) return;
+  selectedMode = mode;
+  const interval = MODE_INTERVALS[mode];
+  if (interval) {
+    document.getElementById('chunk-min').value = interval;
+    updateQuotaHint();
+  }
+  updateModeCards();
+}
+
+function updateModeCards() {
+  Object.keys(MODE_BTN_IDS).forEach(mode => {
+    const btn = document.getElementById(MODE_BTN_IDS[mode]);
+    if (!btn) return;
+    const active = selectedMode === mode;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
+
+function startSelectedMode() {
+  if (!backupDirHandle && !backupReminderDismissed) {
+    showBackupReminder();
+    return;
+  }
+  if (selectedMode === 'screen') return startScreen();
+  if (selectedMode === 'mixed' || selectedMode === 'teams') return startMixed();
+  return startMic();
+}
+
+function showBackupReminder() {
+  const el = document.getElementById('backup-reminder');
+  if (el) el.classList.add('show');
+}
+
+function hideBackupReminder() {
+  const el = document.getElementById('backup-reminder');
+  if (el) el.classList.remove('show');
+}
+
+async function chooseBackupThenStart() {
+  hideBackupReminder();
+  await chooseBackupFolder();
+  if (!backupDirHandle) {
+    showBackupReminder();
+    return;
+  }
+  backupReminderDismissed = true;
+  startSelectedMode();
+}
+
+function skipBackupAndStart() {
+  hideBackupReminder();
+  backupReminderDismissed = true;
+  startSelectedMode();
+}
+
+function formatElapsed(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function updateRecordingTimer() {
+  const el = document.getElementById('recording-timer');
+  if (el) el.textContent = recordingStartMs ? formatElapsed(Date.now() - recordingStartMs) : '00:00:00';
+  updateActiveSegCardCountdown();
+}
+
+function startRecordingTimer() {
+  clearInterval(recordingTimer);
+  updateRecordingTimer();
+  recordingTimer = setInterval(updateRecordingTimer, 1000);
+}
+
+function stopRecordingTimer() {
+  clearInterval(recordingTimer);
+  recordingTimer = null;
+  updateRecordingTimer();
+  setRecordingSizeLabel('');
+}
+
+function hasTranscriptText() {
+  return sessionSegs.some(s => !s.isError && (s.text || '').trim());
+}
+
+function updateExportButtons() {
+  const disabled = !hasTranscriptText();
+  ['btn-copy', 'btn-download-md', 'btn-download-srt', 'btn-download-txt'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = disabled;
+  });
+}
+
+function transcriptPlainText() {
+  return sessionSegs
+    .filter(s => !s.isError && (s.text || '').trim())
+    .map(s => s.translation ? `${s.text}\n\n${s.translation}` : s.text)
+    .join('\n\n');
+}
+
+function buildTranscriptText() {
+  const sessions = recordingSessions.length
+    ? recordingSessions
+    : (sessionSegs.length ? [{ startedAt: null, stoppedAt: null, mode: currentMode, duration: null, segments: sessionSegs }] : []);
+  return sessions.map((session, i) => {
+    const lines = [
+      `錄音紀錄 ${i + 1}`,
+      `${formatSessionClock(session.startedAt)}–${session.stoppedAt ? formatSessionClock(session.stoppedAt) : '進行中'} · ${formatSessionDuration(sessionDuration(session))} · ${displayModeLabel(session.mode)}`,
+      '',
+    ];
+    (session.segments || []).filter(s => !s.isError).forEach(s => {
+      if (s.text) lines.push(s.text, '');
+      if (s.translation) lines.push(s.translation, '');
+    });
+    return lines.join('\n').trim();
+  }).filter(Boolean).join('\n\n---\n\n');
+}
+
+async function copyTranscript() {
+  const text = transcriptPlainText();
+  if (!text) {
+    status('⚠️ 尚無內容可複製');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    showInfoToast('已複製逐字稿');
+  } catch (e) {
+    status(`⚠️ 複製失敗：${e.message}`);
+  }
+}
+
+function initStoredSettings() {
+  const apiInput = document.getElementById('api-key');
+  const rememberInput = document.getElementById('remember-api-key');
+  const savedKey = localStorage.getItem(API_KEY_STORAGE);
+  if (savedKey && apiInput && !apiInput.value) {
+    apiInput.value = savedKey;
+    if (rememberInput) rememberInput.checked = true;
+  } else if (rememberInput) {
+    rememberInput.checked = false;
+  }
+  apiInput?.addEventListener('input', () => {
+    const value = apiInput.value.trim();
+    if (!rememberInput?.checked) return;
+    if (value) localStorage.setItem(API_KEY_STORAGE, value);
+    else localStorage.removeItem(API_KEY_STORAGE);
+  });
+  rememberInput?.addEventListener('change', () => {
+    if (rememberInput.checked) {
+      const value = apiInput?.value.trim() || '';
+      if (value) localStorage.setItem(API_KEY_STORAGE, value);
+    } else {
+      localStorage.removeItem(API_KEY_STORAGE);
+    }
+  });
+  updateModeCards();
+  updateExportButtons();
+  updateRecordingTimer();
+  if (!savedKey) setTimeout(() => openSettings(false), 250);
+}
+
+// ── Feature 3: API wait timer functions ────────────────────────────────────
+function _startApiWait() {
+  if (_apiWaitTimer || isRecording) return; // only show when not recording
+  _apiWaitStart = Date.now();
+  _apiWaitTimer = setInterval(() => {
+    if (pendingApiCount === 0) { _stopApiWait(); return; }
+    const sec = Math.round((Date.now() - _apiWaitStart) / 1000);
+    const suffix = sec >= 15 ? '，音訊較長，請稍候' : '';
+    const label = pendingApiCount > 1 ? `轉錄 ${pendingApiCount} 段` : '轉錄';
+    status(`${label}中…（已等待 ${sec} 秒${suffix}）`, 'api');
+  }, 1000);
+}
+function _stopApiWait() {
+  if (_apiWaitTimer) { clearInterval(_apiWaitTimer); _apiWaitTimer = null; }
+}
+
+// ── Silence monitor ────────────────────────────────────────────────────────
+function resetChunkAudioMonitor() {
+  chunkHadAudio = false;
+  chunkAudioSamples = 0;
+}
+
+function startSilenceMonitor(stream) {
+  stopSilenceMonitor();
+  resetChunkAudioMonitor();
+  lastAudibleAt = Date.now();
+  silenceWarned = false;
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    silenceAudioCtx = new AudioCtx();
+    silenceAnalyser = silenceAudioCtx.createAnalyser();
+    silenceAnalyser.fftSize = 2048;
+    silenceSource = silenceAudioCtx.createMediaStreamSource(stream);
+    silenceSource.connect(silenceAnalyser);
+    const data = new Uint8Array(silenceAnalyser.fftSize);
+    silenceTimer = setInterval(() => {
+      if (!silenceAnalyser || !isRecording) return;
+      silenceAnalyser.getByteTimeDomainData(data);
+      let sum = 0;
+      let peak = 0;
+      for (let i = 0; i < data.length; i++) {
+        const v = (data[i] - 128) / 128;
+        sum += v * v;
+        const abs = Math.abs(v);
+        if (abs > peak) peak = abs;
+      }
+      const rms = Math.sqrt(sum / data.length);
+      const audible = rms >= SILENCE_RMS_THRESHOLD || peak >= SILENCE_PEAK_THRESHOLD;
+      chunkAudioSamples++;
+      if (audible) {
+        chunkHadAudio = true;
+        lastAudibleAt = Date.now();
+        silenceWarned = false;
+      } else if (!silenceWarned && Date.now() - lastAudibleAt >= SILENCE_WARNING_MS) {
+        silenceWarned = true;
+        showInfoToast('未偵測到明顯聲音，請確認麥克風或分頁音訊是否已開啟。', 5000);
+      }
+    }, 500);
+  } catch (_) {
+    stopSilenceMonitor();
+  }
+}
+
+function stopSilenceMonitor() {
+  if (silenceTimer) {
+    clearInterval(silenceTimer);
+    silenceTimer = null;
+  }
+  try { if (silenceSource) silenceSource.disconnect(); } catch (_) {}
+  silenceSource = null;
+  silenceAnalyser = null;
+  if (silenceAudioCtx) {
+    try { silenceAudioCtx.close(); } catch (_) {}
+    silenceAudioCtx = null;
+  }
+}
+
+function shouldSkipSilentSegment() {
+  return chunkAudioSamples >= MIN_SILENCE_SAMPLES && !chunkHadAudio;
+}
+
+// ── Cleanup all active streams & audio context ─────────────────────────────
+function cleanupStreams() {
+  clearTimeout(initialFeedbackTimer);
+  initialFeedbackTimer = null;
+  stopSilenceMonitor();
+  if (activeStream) { activeStream.getTracks().forEach(t => t.stop()); activeStream = null; }
+  extraStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
+  extraStreams = [];
+  if (activeAudioCtx) { activeAudioCtx.close(); activeAudioCtx = null; }
+  micTrackRef = null;
+  showMuteBtn(false);
+}
+
+// ── Mic mute toggle ────────────────────────────────────────────────────────
+function showMuteBtn(show) {
+  const btn = document.getElementById('btn-mute');
+  btn.style.display = show ? '' : 'none';
+  if (!show) { btn.textContent = '🔇 靜音麥克風'; btn.className = 'bw'; }
+  else if (btn.className !== 'bd') btn.className = 'bw';
+}
+
+function toggleMicMute() {
+  if (!micTrackRef) return;
+  micTrackRef.enabled = !micTrackRef.enabled;
+  const muted = !micTrackRef.enabled;
+  const btn = document.getElementById('btn-mute');
+  btn.textContent = muted ? '🎙 解除靜音' : '🔇 靜音麥克風';
+  btn.className   = muted ? 'bd' : 'bw';
+}
+
+// ── Core recording logic ───────────────────────────────────────────────────
+function beginRecording(stream) {
+  isRecording      = true;
+  activeStream     = stream;
+  pendingChunks    = [];
+  recordingSize    = 0;
+  autoFlushing     = false;
+  chunkIdx         = 0;
+  pendingApiCount  = 0;
+  nextDisplaySeg   = 1;
+  segResultBuffer  = {};
+  adaptiveChunkMin = null;
+  adaptiveSegsLeft = 0;
+  currentRecordingSession = null;
+  if (!currentSessionId) currentSessionId = `session_${Date.now()}`;
+  recordingStartMs = Date.now();
+  chunkStartMs     = Date.now();
+  setRecordingSizeLabel('');
+  setBtns(true);
+  startRecordingTimer();
+  startBackupInterval();
+  scheduleFileBackup();
+  startSilenceMonitor(stream);
+  startRecorderOnStream(stream);
+  clearTimeout(initialFeedbackTimer);
+  initialFeedbackTimer = setTimeout(() => {
+    if (!isRecording || !currentRecordingSession || currentRecordingSession.initialFeedbackFlushed) return;
+    if (!recorder || recorder.state !== 'recording') return;
+    currentRecordingSession.initialFeedbackFlushed = true;
+    autoFlushing = true;
+    status('先送出前 15 秒音訊，確認轉錄正常...', 'proc');
+    try { recorder.requestData(); } catch (_) {}
+    recorder.stop();
+  }, INITIAL_FEEDBACK_MS);
+}
+
+function startRecorderOnStream(stream) {
+  const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg']
+    .find(t => MediaRecorder.isTypeSupported(t)) || '';
+
+  recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
+
+  recorder.ondataavailable = e => {
+    if (!e.data || e.data.size === 0) return;
+    pendingChunks.push(e.data);
+    recordingSize += e.data.size;
+    const mb = (recordingSize / 1024 / 1024).toFixed(1);
+    setRecordingSizeLabel(`${mb} MB`);
+    status('錄音中', 'rec');
+    const userChunkMin = parseInt(document.getElementById('chunk-min').value, 10) || 10;
+    const chunkMinutes = (adaptiveChunkMin !== null && adaptiveSegsLeft > 0) ? adaptiveChunkMin : userChunkMin;
+    const hitSizeLimit = recordingSize >= MAX_CHUNK_BYTES;
+    const hitDurationLimit = Date.now() - chunkStartMs >= chunkMinutes * 60 * 1000;
+    const hitInitialFeedback =
+      currentRecordingSession &&
+      !currentRecordingSession.initialFeedbackFlushed &&
+      Date.now() - currentRecordingSession.startedAt >= INITIAL_FEEDBACK_MS;
+    if ((hitSizeLimit || hitDurationLimit || hitInitialFeedback) && !autoFlushing) {
+      autoFlushing = true;
+      if (currentRecordingSession) currentRecordingSession.initialFeedbackFlushed = true;
+      if (hitInitialFeedback) {
+        clearTimeout(initialFeedbackTimer);
+        initialFeedbackTimer = null;
+      }
+      status(
+        hitInitialFeedback
+          ? '先送出前 15 秒音訊，確認轉錄正常...'
+          : hitDurationLimit
+            ? `單段錄音達 ${chunkMinutes} 分鐘，自動送出並繼續錄音...`
+          : '音訊接近 API 上限，自動送出並繼續錄音...',
+        'proc'
+      );
+      recorder.stop();
+    }
+  };
+
+  recorder.onstop = () => {
+    if (!pendingChunks.length) {
+      // No audio to send — if fully stopped and no in-flight API calls, wrap up
+      if (!isRecording && pendingApiCount === 0) {
+        cleanupStreams();
+        setBtns(false);
+        stopRecordingTimer();
+        status('收音已結束', 'done');
+        stopBackupInterval();
+        writeBackupFile('收音已結束');
+      }
+      return;
+    }
+
+    const silentSegment = shouldSkipSilentSegment();
+    const blob = new Blob(pendingChunks, { type: recorder.mimeType || 'audio/webm' });
+    pendingChunks = [];
+    recordingSize = 0;
+    setRecordingSizeLabel('');
+    chunkIdx++;
+    if (adaptiveSegsLeft > 0) {
+      adaptiveSegsLeft--;
+      if (adaptiveSegsLeft === 0) adaptiveChunkMin = null;
+    }
+    const mySegNum = chunkIdx;
+
+    // Feature 2: capture timing before firing API
+    const segEndSec   = (Date.now() - recordingStartMs) / 1000;
+    const segStartSec = (chunkStartMs - recordingStartMs) / 1000;
+    chunkStartMs = Date.now(); // next chunk's start
+
+    // Auto-flush: restart recorder immediately — no need to wait for API response
+    if (isRecording) {
+      autoFlushing = false;
+      resetChunkAudioMonitor();
+      startRecorderOnStream(stream);
+    }
+
+    if (silentSegment) {
+      markSegCardSilent(mySegNum, segStartSec, segEndSec);
+      showInfoToast('此段未偵測到明確語音，已略過 API 轉錄。', 3500);
+      if (!isRecording && pendingApiCount === 0) {
+        cleanupStreams();
+        setBtns(false);
+        stopRecordingTimer();
+        status('收音已結束', 'done');
+        stopBackupInterval();
+        writeBackupFile('收音已結束');
+      }
+      return;
+    }
+
+    // Fire API call in background; cleanup only after all calls settle
+    sealSegCard(mySegNum);
+    pendingApiCount++;
+    _startApiWait();
+    status(`轉錄第 ${mySegNum} 段中...`, 'proc');
+    sendToGemini(blob, 0, mySegNum, segStartSec, segEndSec).finally(() => {
+      pendingApiCount--;
+      _stopApiWait();
+      if (!isRecording && pendingApiCount === 0) {
+        cleanupStreams();
+        setBtns(false);
+        stopRecordingTimer();
+        status('收音已結束', 'done');
+        stopBackupInterval();
+        writeBackupFile('收音已結束');
+      }
+    });
+  };
+
+  recorder.start(5000); // 每 5 秒收集一次資料以監控大小
+  if (!currentRecordingSession) createRecordingSession(Date.now());
+  createActiveSegCard(chunkIdx + 1);
+}
+
+// ── Start mic ──────────────────────────────────────────────────────────────
+async function startMic() {
+  if (!validate()) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
+    stream.getTracks().forEach(t => { t.onended = () => { if (isRecording) stopRecording(); }; });
+    micTrackRef = stream.getAudioTracks()[0];
+    showMuteBtn(true);
+    currentMode = '麥克風';
+    status('錄音中（麥克風）', 'rec');
+    beginRecording(stream);
+  } catch (e) {
+    status('⚠️ 無法存取麥克風：' + e.message);
+  }
+}
+
+// ── Start screen / tab capture (no mic) ───────────────────────────────────
+async function startScreen() {
+  if (!validate()) return;
+  try {
+    const raw = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    raw.getVideoTracks().forEach(t => t.stop());
+    const audioTracks = raw.getAudioTracks();
+    if (!audioTracks.length) {
+      status('⚠️ 未取得音訊。請選「分頁（Tab）」並勾選「共享分頁音訊」。');
+      return;
+    }
+    audioTracks.forEach(t => { t.onended = () => { if (isRecording) stopRecording(); }; });
+    currentMode = '分頁音訊';
+    status('錄音中（只收分頁音訊）', 'rec');
+    beginRecording(new MediaStream(audioTracks));
+  } catch (e) {
+    status(e.name === 'AbortError' ? '已取消選擇' : '⚠️ ' + e.message);
+  }
+}
+
+// ── Start mixed: mic + tab/screen audio ────────────────────────────────────
+async function startMixed() {
+  if (!validate()) return;
+  try {
+    // 1. 取得麥克風（混合模式關閉回音消除，避免分頁音訊被誤判為回音而消掉麥克風訊號）
+    const micStream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: false } });
+
+    // 2. 嘗試取得分頁/螢幕音訊；取消或失敗就退回純麥克風
+    let screenAudio = [];
+    let screenStream = null;
+    try {
+      screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      screenStream.getVideoTracks().forEach(t => t.stop());
+      screenAudio = screenStream.getAudioTracks();
+    } catch (e) {
+      // AbortError = 使用者取消，其他錯誤也靜默退回麥克風模式
+    }
+
+    // 3. 用 AudioContext 混合（resume 確保 context 不在暫停狀態）
+    const ctx  = new AudioContext();
+    await ctx.resume();
+    const dest = ctx.createMediaStreamDestination();
+    ctx.createMediaStreamSource(micStream).connect(dest);
+    if (screenAudio.length) {
+      ctx.createMediaStreamSource(new MediaStream(screenAudio)).connect(dest);
+    }
+
+    // 4. 任一來源結束 → 自動停止
+    [...micStream.getTracks(), ...screenAudio].forEach(t => {
+      t.onended = () => { if (isRecording) stopRecording(); };
+    });
+
+    extraStreams    = screenStream ? [micStream, screenStream] : [micStream];
+    activeAudioCtx = ctx;
+    micTrackRef    = micStream.getAudioTracks()[0];
+    showMuteBtn(true);
+
+    const label = screenAudio.length
+      ? '錄音中（麥克風 ＋ 分頁/螢幕）'
+      : '錄音中（純麥克風，未取得分頁音訊）';
+    currentMode = screenAudio.length ? '麥克風＋分頁' : '麥克風';
+    status(label, 'rec');
+
+    // Feature 5: show info toast if fell back to mic-only
+    if (!screenAudio.length) showInfoToast('未選擇分頁分享，已切換為僅收麥克風');
+
+    beginRecording(dest.stream);
+  } catch (e) {
+    status('⚠️ ' + e.message);
+  }
+}
+
+// ── Stop ───────────────────────────────────────────────────────────────────
+function stopRecording() {
+  markCurrentRecordingSessionStopped(Date.now());
+  isRecording = false;
+  clearTimeout(initialFeedbackTimer);
+  initialFeedbackTimer = null;
+  // 立刻鎖住所有按鈕與設定欄位，防止重複按
+  ['btn-mic', 'btn-screen', 'btn-mixed', 'btn-start', 'btn-stop'].forEach(id =>
+    document.getElementById(id).disabled = true
+  );
+  ['api-key', 'language', 'translate-to', 'chunk-min'].forEach(id =>
+    document.getElementById(id).disabled = true
+  );
+  if (recorder && recorder.state === 'recording') {
+    status('停止收音，轉錄中...', 'proc');
+    recorder.stop(); // onstop 負責送出剩餘音訊，所有 API 請求完成後才解鎖
+  } else if (pendingApiCount > 0) {
+    status('等待轉錄完成...', 'proc');
+    // cleanup happens in sendToGemini's .finally() handler
+  } else {
+    cleanupStreams();
+    setBtns(false);
+    stopRecordingTimer();
+    status('收音已結束', 'done');
+    stopBackupInterval();
+    writeBackupFile('收音已結束');
+  }
+}
+
+// ── Validate ───────────────────────────────────────────────────────────────
+function validate() {
+  if (!document.getElementById('api-key').value.trim()) {
+    status('⚠️ 請先填入 Gemini API Key');
+    openSettings();
+    return false;
+  }
+  return true;
+}
+
+// ── Model fallback list ────────────────────────────────────────────────────
+const PRIMARY_MODEL   = 'gemini-3.1-flash-lite';
+const FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-2.5-flash-lite'];
+const MODEL_COOLDOWN_MS = 3 * 60 * 1000;
+let lastSuccessfulModel = PRIMARY_MODEL;
+const failedModelCooldowns = {};
+
+function allGeminiModels() {
+  return [...new Set([PRIMARY_MODEL, ...FALLBACK_MODELS])];
+}
+
+function isModelCoolingDown(model, now = Date.now()) {
+  return (failedModelCooldowns[model] || 0) > now;
+}
+
+function markModelFailure(model) {
+  failedModelCooldowns[model] = Date.now() + MODEL_COOLDOWN_MS;
+}
+
+function markModelSuccess(model) {
+  lastSuccessfulModel = model;
+  delete failedModelCooldowns[model];
+}
+
+function buildModelTryList() {
+  const models = allGeminiModels();
+  const preferred = models.includes(lastSuccessfulModel) ? lastSuccessfulModel : PRIMARY_MODEL;
+  const ordered = [preferred, ...models.filter(m => m !== preferred)];
+  const now = Date.now();
+  const available = ordered.filter(m => !isModelCoolingDown(m, now));
+  const cooling = ordered.filter(m => isModelCoolingDown(m, now));
+  return available.length ? [...available, ...cooling] : ordered;
+}
+
+// ── Send chunk to Gemini ───────────────────────────────────────────────────
+async function sendToGemini(blob, modelIdx = 0, segNum = null, startSec = null, endSec = null, modelTryList = null, retryCount = 0) {
+  const apiKey   = document.getElementById('api-key').value.trim();
+  const language = document.getElementById('language').value;
+  const glossary = '';
+  const tryList  = modelTryList || buildModelTryList();
+  if (modelIdx >= tryList.length) {
+    appendSeg('', '⚠️ 所有備用模型均忙碌，請稍後再試', null, segNum, true, startSec, endSec);
+    showToast('轉錄失敗：所有備用模型均忙碌');
+    return;
+  }
+  const model    = tryList[modelIdx];
+  const mimeType = blob.type || 'audio/webm';
+
+  const translateTo = document.getElementById('translate-to').value;
+
+  const langLine = language === 'auto'
+    ? '自動辨識語言；凡是中文內容一律使用繁體中文與台灣常用字，不可輸出簡體字。'
+    : `主要語言為${language}；若內容為中文，一律使用繁體中文與台灣常用字，不可輸出簡體字。`;
+
+  const antiRepeat = retryCount > 0
+    ? '【重試注意】上次此段轉錄出現大量循環重複。若音訊有迴音、重疊或難以辨識，請直接輸出「（此段難以辨識）」，嚴禁輸出任何循環或重複的詞語與句子。'
+    : '若音訊有迴音、多人重疊或持續雜音，請輸出「（此段難以辨識）」，禁止循環或重複輸出任何詞語。';
+
+  const prompt = translateTo ? [
+    '請完成以下兩件事：',
+    `（1）忠實轉錄這段音訊，不可摘要、改寫或補充沒有說出的內容。${langLine}如有多位講者，格式為「講者X：文字」；若只有一人則省略講者標示。聽不清楚時保留最接近的原話；若音訊有迴音或重疊難以辨識，請輸出「（此段難以辨識）」，禁止循環重複任何詞語。`,
+    `（2）將上述轉錄內容翻譯成${translateTo}，翻譯力求自然流暢。`,
+    glossary ? `下列為可能出現的專有名詞，請優先以這些詞彙拼寫：${glossary}` : '',
+    '請嚴格按照以下格式輸出，不可增加任何其他說明：',
+    '【原文】',
+    '（轉錄內容）',
+    '【翻譯】',
+    '（翻譯內容）',
+  ].filter(Boolean).join('\n') : [
+    '忠實轉錄這段音訊，不可摘要、改寫或補充沒有說出的內容。',
+    langLine,
+    '如有多位講者，格式為「講者X：文字」；若只有一人則省略講者標示，直接輸出文字。',
+    '聽不清楚時保留最接近的原話，不要自行猜測具體事實或補充未說出的內容。',
+    antiRepeat,
+    glossary ? `下列為可能出現的專有名詞，請優先以這些詞彙拼寫：${glossary}` : '',
+  ].filter(Boolean).join('\n');
+
+  try {
+    const base64 = await blobToBase64(blob);
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { inline_data: { mime_type: mimeType, data: base64 } },
+              { text: retryCount > 0 ? antiRepeat + '\n\n' + prompt : prompt },
+            ],
+          }],
+          generation_config: { temperature: 0, max_output_tokens: 8192 },
+        }),
+      }
+    );
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const msg = err?.error?.message || res.statusText;
+
+      const retryS  = msg.match(/retry in ([\d.]+)s\b/i);
+      const retryMs = msg.match(/retry in ([\d.]+)ms\b/i);
+      const waitSec = retryS
+        ? Math.ceil(parseFloat(retryS[1]))
+        : retryMs
+          ? Math.max(1, Math.ceil(parseFloat(retryMs[1]) / 1000))
+          : null;
+
+      // 短暫限速（5 秒內）→ 靜默等待後同模型重試
+      if (waitSec !== null && waitSec <= 5) {
+        status('稍後重試...', 'proc');
+        await new Promise(r => setTimeout(r, waitSec * 1000));
+        return sendToGemini(blob, modelIdx, segNum, startSec, endSec, tryList, retryCount);
+      }
+
+      // 其他錯誤（高流量、長時間限速、額度用完）→ 靜默切換備用模型
+      markModelFailure(model);
+      const next = modelIdx + 1;
+      if (next < tryList.length) {
+        status(`切換備用模型中...`, 'proc');
+        return sendToGemini(blob, next, segNum, startSec, endSec, tryList, retryCount);
+      }
+
+      // 所有模型都失敗才顯示錯誤
+      appendSeg('', `⚠️ 轉錄失敗，請稍後再試`, null, segNum, true, startSec, endSec);
+      showToast('轉錄失敗，請稍後再試');
+      return;
+    }
+
+    const data = await res.json();
+    const raw  = data?.candidates?.[0]?.content?.parts?.[0]?.text || '（無法辨識）';
+    const now  = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    const origMatch  = raw.match(/【原文】\s*([\s\S]*?)(?=【翻譯】|$)/);
+    const transMatch = raw.match(/【翻譯】\s*([\s\S]*?)$/);
+    const origText   = deloopText(normalizeChineseOutput(origMatch ? origMatch[1].trim() : raw.trim(), language));
+    const transText  = transMatch ? deloopText(normalizeChineseOutput(transMatch[1].trim(), translateTo || language)) : null;
+
+    const hasRepeat = origText.includes('⚠️ 重複') || origText.includes('重複內容已截斷');
+
+    // 首次偵測到重複 → 用更強提示重試一次，不顯示壞結果
+    if (hasRepeat && retryCount === 0) {
+      markModelSuccess(model);
+      status(`第 ${segNum ?? chunkIdx} 段偵測到重複，自動重試...`, 'proc');
+      return sendToGemini(blob, modelIdx, segNum, startSec, endSec, tryList, 1);
+    }
+
+    markModelSuccess(model);
+
+    // 重試後仍有重複 → 通知使用者並啟動自適應分段縮短
+    if (hasRepeat) {
+      const userChunk = parseInt(document.getElementById('chunk-min').value, 10) || 10;
+      if (userChunk > 3 && adaptiveSegsLeft === 0) {
+        adaptiveChunkMin = Math.max(3, Math.round(userChunk / 2));
+        adaptiveSegsLeft = 2;
+        showInfoToast(`重複仍存在，已自動將下 2 段縮短為 ${adaptiveChunkMin} 分鐘`, 5000);
+      } else {
+        showInfoToast('此段重複已截斷，建議在設定中縮短轉錄間隔至 3–5 分鐘', 5000);
+      }
+    }
+
+    appendSeg(now, origText, transText, segNum, false, startSec, endSec);
+    status(`第 ${segNum ?? chunkIdx} 段完成`, 'rec');
+
+  } catch (e) {
+    appendSeg('', `⚠️ 網路錯誤：${e.message}`, null, segNum, true, startSec, endSec);
+    showToast(`網路錯誤：${e.message}`);
+  }
+}
+
+function normalizeChineseOutput(text, languageLabel) {
+  if (!text) return text;
+  const simplifiedSignal = /[这为无议们对听让从还个给题将护实过产湾发舰陆进边圆术]/;
+  if (languageLabel !== '繁體中文' && !simplifiedSignal.test(text)) return text;
+  const phraseMap = {
+    '无人机': '無人機',
+    '公听会': '公聽會',
+    '立法院': '立法院',
+    '护国神山': '護國神山',
+    '台湾': '台灣',
+    '里面': '裡面',
+    '技术': '技術',
+    '国防': '國防',
+    '美国': '美國',
+    '俄罗斯': '俄羅斯',
+    '乌克兰': '烏克蘭',
+    '中国大陆': '中國大陸',
+    '伊朗': '伊朗',
+  };
+  const charMap = {
+    '这':'這','为':'為','会':'會','无':'無','机':'機','议':'議','题':'題','国':'國','们':'們',
+    '对':'對','听':'聽','说':'說','让':'讓','从':'從','还':'還','没':'沒','个':'個','来':'來',
+    '内':'內','给':'給','将':'將','护':'護','实':'實','场':'場','过':'過','产':'產','业':'業',
+    '发':'發','舰':'艦','陆':'陸','进':'進','边':'邊','圆':'圓','导':'導','联':'聯','报':'報',
+    '价':'價','万':'萬','颗':'顆','军':'軍','复':'複','须':'須','东':'東','买':'買','车':'車',
+    '载':'載','认':'認','输':'輸','转':'轉','录':'錄','页':'頁','频':'頻','资':'資','讯':'訊',
+    '储':'儲','览':'覽','浏':'瀏','设':'設','声':'聲','学':'學','体':'體','简':'簡','汉':'漢',
+    '补':'補','写':'寫','测':'測','识':'識','讲':'講','词':'詞','优':'優','显':'顯','区':'區',
+    '档':'檔','夹':'夾','备':'備','键':'鍵','图':'圖','统':'統','处':'處','错':'錯','误':'誤',
+    '网':'網','络':'絡','达':'達','与':'與','专':'專','关':'關','门':'門','开':'開','数':'數',
+    '据':'據','时':'時','间':'間','长':'長','风':'風','险':'險','稳':'穩','额':'額','费':'費',
+    '选':'選','择':'擇','项':'項','击':'擊','义':'義','务':'務','权':'權','属':'屬','该':'該',
+    '经':'經','举':'舉','证':'證','际':'際','线':'線','历':'歷','战':'戰','岛':'島','干':'幹',
+    '种':'種','两':'兩','术':'術',
+  };
+  let output = text;
+  for (const [from, to] of Object.entries(phraseMap)) {
+    output = output.split(from).join(to);
+  }
+  output = output
+    .replace(/[^\x00-\x7F]/g, ch => charMap[ch] || ch)
+    .replace(/([\u3400-\u9FFF])\s+([\u3400-\u9FFF])/g, '$1$2');
+  while (/[\u3400-\u9FFF]\s+[\u3400-\u9FFF]/.test(output)) {
+    output = output.replace(/([\u3400-\u9FFF])\s+([\u3400-\u9FFF])/g, '$1$2');
+  }
+  return output;
+}
+
+// ── Repetition detector (anti-hallucination) ───────────────────────────────
+function deloopText(text) {
+  if (!text || text.length < 40) return text;
+  // Collapse consecutive duplicate lines (e.g. same sentence repeated on each line)
+  const lines = text.split('\n');
+  const outLines = []; let prev = null, streak = 0;
+  for (const line of lines) {
+    if (line.trim() && line === prev) {
+      streak++;
+      if (streak === 3) outLines.push('（⚠️ 重複內容已截斷）');
+      if (streak >= 3) continue;
+    } else { streak = 0; }
+    outLines.push(line); prev = line;
+  }
+  // Collapse inline repetition: any phrase of 5-80 chars repeated 5+ times
+  return outLines.join('\n').replace(/(.{5,80}?)\1{5,}/gs, (_, unit) => {
+    const count = Math.floor(_.length / unit.length);
+    return `${unit}⋯（⚠️ 重複 ${count} 次，已截斷）`;
+  });
+}
+
+function joinTranscriptText(existing, next) {
+  if (!existing) return next;
+  if (!next) return '';
+  if (/\s$/.test(existing) || /^\s/.test(next)) return next;
+  if (/[A-Za-z0-9]$/.test(existing) && /^[A-Za-z0-9]/.test(next)) return ` ${next}`;
+  return next;
+}
+
+function inlineTranscriptText(text) {
+  return (text || '').replace(/\s*\n+\s*/g, ' ').replace(/[ \t]{2,}/g, ' ').trim();
+}
+
+// ── Segment card helpers ───────────────────────────────────────────────────
+
+function segCardEl(segNum) {
+  return document.querySelector(`.seg-card[data-seg="${segNum}"]`);
+}
+
+function createActiveSegCard(segNum) {
+  const recSession = currentRecordingSession;
+  if (!recSession) return;
+  const sessionEl = renderRecordingSessionShell(recSession);
+  const body = sessionEl.querySelector('.recording-session-body');
+  const card = document.createElement('div');
+  card.className = 'seg-card seg-fadein';
+  card.dataset.seg = segNum;
+  card.dataset.status = 'recording';
+  card.innerHTML =
+    `<div class="seg-card-head">` +
+    `<span class="seg-badge seg-badge-recording">● 第 ${segNum} 段錄音中</span>` +
+    `<span class="seg-countdown"></span>` +
+    `</div><div class="seg-card-body"></div>`;
+  body.appendChild(card);
+  const area = document.getElementById('tarea');
+  if (area && area.scrollHeight - area.scrollTop - area.clientHeight < 80)
+    area.scrollTop = area.scrollHeight;
+}
+
+function updateActiveSegCardCountdown() {
+  const card = document.querySelector('.seg-card[data-status="recording"]');
+  if (!card) return;
+  const countdown = card.querySelector('.seg-countdown');
+  if (!countdown) return;
+  const userMin = parseInt(document.getElementById('chunk-min').value, 10) || 10;
+  const effectiveMin = (adaptiveChunkMin !== null && adaptiveSegsLeft > 0) ? adaptiveChunkMin : userMin;
+  const elapsed = Date.now() - chunkStartMs;
+  const remaining = Math.max(0, effectiveMin * 60 * 1000 - elapsed);
+  countdown.textContent = `${formatElapsed(elapsed)} · 剩餘 ${formatElapsed(remaining)}`;
+}
+
+function sealSegCard(segNum) {
+  const card = segCardEl(segNum);
+  if (!card) return;
+  card.dataset.status = 'correcting';
+  const badge = card.querySelector('.seg-badge');
+  if (badge) { badge.className = 'seg-badge seg-badge-correcting'; badge.textContent = '⟳ 校正中'; }
+  const cd = card.querySelector('.seg-countdown');
+  if (cd) cd.textContent = '';
+}
+
+function markSegCardSilent(segNum, startSec, endSec) {
+  const segObj = { time: '', text: '（此段未偵測到明確語音）', translation: null, isError: false, startSec, endSec };
+  sessionSegs.push(segObj);
+  const recSession = currentRecordingSession;
+  if (recSession) { if (!recSession.segments) recSession.segments = []; recSession.segments.push(segObj); }
+  const card = segCardEl(segNum);
+  if (card) {
+    card.dataset.status = 'silent';
+    const badge = card.querySelector('.seg-badge');
+    if (badge) { badge.className = 'seg-badge seg-badge-silent'; badge.textContent = '— 無語音'; }
+    const cd = card.querySelector('.seg-countdown');
+    if (cd) cd.textContent = '';
+    const body = card.querySelector('.seg-card-body');
+    if (body) body.textContent = '（此段未偵測到明確語音）';
+  }
+  scheduleAutosave();
+  scheduleFileBackup();
+  updateExportButtons();
+}
+
+function _updateSegCard(segNum, time, text, translation, isError, startSec, endSec) {
+  if (!isError) {
+    text = inlineTranscriptText(text);
+    translation = inlineTranscriptText(translation);
+  }
+  const seg = { time, text, translation, isError, startSec, endSec };
+  sessionSegs.push(seg);
+  const recSession = currentRecordingSession;
+  if (recSession) { if (!recSession.segments) recSession.segments = []; recSession.segments.push(seg); }
+
+  const card = segCardEl(segNum);
+  if (!card) { _renderSeg(time, text, translation, isError, startSec, endSec); return; }
+
+  const badge = card.querySelector('.seg-badge');
+  const cd    = card.querySelector('.seg-countdown');
+  const body  = card.querySelector('.seg-card-body');
+  if (cd) cd.textContent = '';
+
+  if (isError) {
+    card.dataset.status = 'error';
+    if (badge) { badge.className = 'seg-badge seg-badge-error'; badge.textContent = '⚠ 失敗'; }
+    if (body) body.textContent = text;
+  } else {
+    card.dataset.status = 'final';
+    if (badge) { badge.className = 'seg-badge seg-badge-final'; badge.textContent = '✓ 已定稿'; }
+    if (body) {
+      body.textContent = text;
+      if (translation) {
+        const tBlock = document.createElement('div');
+        tBlock.className = 'seg-translation seg-fadein';
+        const lbl = document.createElement('div');
+        lbl.className = 'seg-translation-label';
+        lbl.textContent = document.getElementById('translate-to').value;
+        const tTxt = document.createElement('div');
+        tTxt.textContent = translation;
+        tBlock.appendChild(lbl);
+        tBlock.appendChild(tTxt);
+        body.appendChild(tBlock);
+      }
+    }
+  }
+
+  scheduleAutosave();
+  scheduleFileBackup();
+  updateExportButtons();
+  const area = document.getElementById('tarea');
+  if (area && area.scrollHeight - area.scrollTop - area.clientHeight < 80)
+    area.scrollTop = area.scrollHeight;
+}
+
+// ── Append segment ─────────────────────────────────────────────────────────
+// segNum: when provided, buffers results and flushes in order (prevents
+// out-of-order display when multiple parallel API calls race to complete).
+function appendSeg(time, text, translation = null, segNum = null, isError = false, startSec = null, endSec = null) {
+  if (segNum !== null) {
+    segResultBuffer[segNum] = { time, text, translation, isError, startSec, endSec };
+    while (segResultBuffer[nextDisplaySeg] !== undefined) {
+      const r = segResultBuffer[nextDisplaySeg];
+      const n = nextDisplaySeg;
+      delete segResultBuffer[nextDisplaySeg];
+      nextDisplaySeg++;
+      _updateSegCard(n, r.time, r.text, r.translation, r.isError, r.startSec, r.endSec);
+    }
+  } else {
+    _renderSeg(time, text, translation, isError, startSec, endSec);
+  }
+}
+
+function _renderSeg(time, text, translation, isError = false, startSec = null, endSec = null, targetSession = null) {
+  if (!isError) {
+    text = inlineTranscriptText(text);
+    translation = inlineTranscriptText(translation);
+  }
+  const seg = { time, text, translation, isError, startSec, endSec };
+  sessionSegs.push(seg);
+
+  const recSession = targetSession || currentRecordingSession || createRecordingSession(Date.now());
+  if (!recSession.segments) recSession.segments = [];
+  recSession.segments.push(seg);
+  const sessionEl = renderRecordingSessionShell(recSession);
+  const body = sessionEl.querySelector('.recording-session-body');
+  const area = ensureTranscriptAreaReady();
+
+  if (isError) {
+    // 錯誤訊息獨立顯示，與正常轉錄文字明顯區隔
+    const errBlock = document.createElement('div');
+    errBlock.className = 'seg-error seg-fadein';
+    errBlock.textContent = text;
+    body.appendChild(errBlock);
+  } else {
+    // 同一次錄音的文字全部接在同一個文字區塊，不分段
+    let mainText = body.querySelector('.session-main');
+    if (!mainText) {
+      mainText = document.createElement('div');
+      mainText.className = 'session-main seg-text';
+      body.appendChild(mainText);
+    }
+    // Append as a fade-in span child
+    const span = document.createElement('span');
+    span.className = 'seg-fadein';
+    span.textContent = joinTranscriptText(mainText.textContent, text);
+    mainText.appendChild(span);
+
+    // 同一次錄音的翻譯也接在同一個翻譯區塊，不逐段拆卡
+    if (translation) {
+      let tBlock = body.querySelector('.session-translation');
+      let tTxt = tBlock?.querySelector('.session-translation-text');
+      if (!tBlock || !tTxt) {
+        tBlock = document.createElement('div');
+        tBlock.className = 'session-translation seg-translation seg-fadein';
+        const lbl = document.createElement('div');
+        lbl.className = 'seg-translation-label';
+        lbl.textContent = document.getElementById('translate-to').value;
+        tTxt = document.createElement('div');
+        tTxt.className = 'session-translation-text';
+        tBlock.appendChild(lbl);
+        tBlock.appendChild(tTxt);
+        body.appendChild(tBlock);
+      }
+      const tSpan = document.createElement('span');
+      tSpan.className = 'seg-fadein';
+      tSpan.textContent = joinTranscriptText(tTxt.textContent, translation);
+      tTxt.appendChild(tSpan);
+    }
+  }
+
+  scheduleAutosave();
+  scheduleFileBackup();
+  updateExportButtons();
+  // Feature 1: smart auto-scroll
+  const atBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 80;
+  if (atBottom) area.scrollTop = area.scrollHeight;
+}
+
+// ── Clear ──────────────────────────────────────────────────────────────────
+function clearTranscript() {
+  finishSession();
+  sessionSegs      = [];
+  recordingSessions = [];
+  currentRecordingSession = null;
+  chunkIdx         = 0;
+  nextDisplaySeg   = 1;
+  segResultBuffer  = {};
+  currentSessionId = null;
+  document.getElementById('tarea').innerHTML =
+    '<div class="empty">開始收音後，轉錄完成的內容會陸續顯示在這裡</div>';
+  scheduleFileBackup();
+  updateExportButtons();
+  status('已清除記錄');
+}
+
+// ── Download Markdown ──────────────────────────────────────────────────────
+function downloadTranscript() {
+  if (!sessionSegs.length) { status('⚠️ 尚無內容可下載'); return; }
+  const today = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([buildTranscriptMarkdown('手動下載')], { type: 'text/markdown;charset=utf-8' }));
+  a.download = `逐字稿_${today}.md`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ── Download SRT ───────────────────────────────────────────────────────────
+function downloadSRT() {
+  const segs = sessionSegs.filter(s => !s.isError && s.startSec != null);
+  if (!segs.length) { status('⚠️ 尚無可匯出的 SRT 內容'); return; }
+  function toSRTTime(sec) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+    const ms = Math.round((sec % 1) * 1000);
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')},${String(ms).padStart(3,'0')}`;
+  }
+  let srt = '';
+  segs.forEach((s, i) => {
+    srt += `${i + 1}\n${toSRTTime(s.startSec)} --> ${toSRTTime(s.endSec)}\n${s.text}\n\n`;
+  });
+  const a = document.createElement('a');
+  const today = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
+  a.href = URL.createObjectURL(new Blob([srt], { type: 'text/srt;charset=utf-8' }));
+  a.download = `逐字稿_${today}.srt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ── Download TXT ───────────────────────────────────────────────────────────
+function downloadTXT() {
+  const segs = sessionSegs.filter(s => !s.isError);
+  if (!segs.length) { status('⚠️ 尚無內容可下載'); return; }
+  const today = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
+  const txt = transcriptPlainText();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain;charset=utf-8' }));
+  a.download = `逐字稿_${today}.txt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ── API quota hint (動態依分鐘設定更新) ───────────────────────────────────
+const FREE_RPD   = 500; // gemini-3.1-flash-lite 免費每日呼叫上限
+
+function updateQuotaHint() {
+  const minPerCall = parseInt(document.getElementById('chunk-min').value, 10) || 10;
+  const totalHrs   = Math.floor(FREE_RPD * minPerCall / 60);
+  const callsPerHr = Math.ceil(60 / minPerCall);
+  document.getElementById('api-quota-hint').textContent =
+    `ℹ️ 建議：一般用 10 分鐘、重要會議用 5 分鐘。免費額度 ${FREE_RPD} 次/天；目前每 ${minPerCall} 分鐘送出一次，` +
+    `約 ${callsPerHr} 次/小時、${totalHrs} 小時/天。`;
+}
+updateQuotaHint(); // 頁面載入時立即顯示
+initStoredSettings();
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeSettings();
+});
+
+// ── IndexedDB init on page load ────────────────────────────────────────────
+(async function initIDB() {
+  try {
+    if (!window.indexedDB) return;
+    idb = await idbOpen();
+    const all        = await idbAll();
+    recoverCandidates = all
+      .filter(s => !s.finished)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+    if (recoverCandidates.length) {
+      const s = recoverCandidates[0];
+      const segs = Array.isArray(s.recordingSessions)
+        ? s.recordingSessions.flatMap(rs => rs.segments || [])
+        : (s.segs || []);
+      const wordCount = segs.filter(sg => !sg.isError).reduce((n, sg) => n + (sg.text || '').replace(/\s/g,'').length, 0);
+      const minAgo = Math.round((Date.now() - s.updatedAt) / 60000);
+      const timeLabel = minAgo < 1 ? '剛才' : minAgo < 60 ? `${minAgo} 分鐘前` : `${Math.round(minAgo/60)} 小時前`;
+      document.getElementById('recover-msg').textContent =
+        `偵測到未完成的逐字稿 — 約 ${wordCount} 字，最後更新 ${timeLabel}。可存成備份檔，不會覆蓋目前畫面。`;
+      document.getElementById('recover-bar').classList.add('show');
+    }
+  } catch (_) {
+    idb = null; // IndexedDB 不可用，靜默略過
+  }
+})();
+
+// ── Dark mode toggle ──────────────────────────────────────────────────────
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const next = isDark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  document.getElementById('btn-theme').textContent = next === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('theme', next);
+}
+(function initTheme() {
+  if (document.documentElement.getAttribute('data-theme') === 'dark') {
+    const btn = document.getElementById('btn-theme');
+    if (btn) btn.textContent = '☀️';
+  }
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+    if (!localStorage.getItem('theme')) {
+      document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+      const btn = document.getElementById('btn-theme');
+      if (btn) btn.textContent = e.matches ? '☀️' : '🌙';
+    }
+  });
+})();
+
+// ── Blob → base64 ─────────────────────────────────────────────────────────
+function blobToBase64(blob) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onloadend = () => res(r.result.split(',')[1]);
+    r.onerror   = rej;
+    r.readAsDataURL(blob);
+  });
+}
+
+initChangelog();
+</script>
+<div id="toast-info"></div>
+<div id="toast"></div>
+</body>
+</html>
