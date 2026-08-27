@@ -1257,19 +1257,24 @@ details[open] summary::before { transform: rotate(90deg); }
           </thead>
           <tbody>
             <tr>
-              <td><b>🎙️ 只收麥克風</b></td>
+              <td><b>🎙 僅收麥克風</b></td>
               <td>現場環境音 / 人聲</td>
               <td>個人口述筆記、現場演講、實體會議</td>
             </tr>
             <tr>
-              <td><b>🖥️ 只收分頁音訊</b></td>
+              <td><b>🖥 僅收分頁音訊</b></td>
               <td>瀏覽器單一分頁聲音</td>
               <td>YouTube 影片、Podcast、網頁廣播</td>
             </tr>
             <tr>
-              <td><b>🎙️＋🖥️ 麥克風＋分頁</b></td>
-              <td>雙向聲音（自己＋網頁）</td>
-              <td>線上會議（Teams / Zoom）、網頁雙向對話</td>
+              <td><b>🎙＋🖥 混合收音</b></td>
+              <td>麥克風＋分頁雙向聲音</td>
+              <td>一般線上會議、網頁雙向對話</td>
+            </tr>
+            <tr>
+              <td><b>🎯 Teams / Zoom</b></td>
+              <td>麥克風＋分頁（自動 3 分鐘切段）</td>
+              <td>Teams / Zoom 會議、多人線上討論</td>
             </tr>
           </tbody>
         </table>
@@ -1279,7 +1284,7 @@ details[open] summary::before { transform: rotate(90deg); }
       <h3>3. 「選什麼才有聲音」快速對照</h3>
       <ul style="color: var(--fg);">
         <li><b>YouTube / 線上影片</b>：選擇「只收分頁」→ 彈窗中勾選「共享分頁音訊」。</li>
-        <li><b>Teams / Zoom 會議</b>：選擇「麥克風＋分頁」→ 彈窗中選擇「整個螢幕」並勾選「共享系統音訊」。</li>
+        <li><b>Teams / Zoom 會議</b>：選擇「Teams / Zoom」模式（自動套用 3 分鐘切段）→ 彈窗中選擇「整個螢幕」並勾選「共享系統音訊」。</li>
       </ul>
 
       <!-- 4. 本機備份說明 -->
@@ -1928,9 +1933,17 @@ function closeSettings() {
 }
 
 // ── Changelog ──────────────────────────────────────────────────────────────
-const CL_VERSION  = '1.2';
+const CL_VERSION  = '1.3';
 const CL_SEEN_KEY = 'transcript-changelog-seen';
 const CHANGELOG = [
+  {
+    version: '1.3', date: '2026-08-27',
+    items: [
+      { tag: 'new', text: '加入即時音量指示器：錄音中顯示收音電平，超過 2.5 秒無聲自動提示。' },
+      { tag: 'new', text: '加入音訊備援與單段重轉：每段音訊自動存入瀏覽器 IndexedDB；轉錄失敗時可點「重新轉錄」單獨補轉，不需整場重錄。' },
+      { tag: 'ux',  text: '使用說明更新：加入 Teams / Zoom 專用模式說明，修正收音模式表格與快速對照。' },
+    ]
+  },
   {
     version: '1.2', date: '2026-08-27',
     items: [
