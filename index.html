@@ -196,6 +196,25 @@ button:active:not(:disabled) { transform: translateY(0); }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
 @keyframes sdot-bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
 
+/* Level meter */
+#level-meter {
+  display: flex; align-items: center; gap: .55rem;
+  margin-bottom: .85rem;
+  font-size: .75rem; color: var(--muted);
+}
+#level-bar-track {
+  flex: 1; height: 4px; border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+#level-fill {
+  height: 100%; width: 0%;
+  border-radius: 2px;
+  background: #22C55E;
+  transition: width 60ms linear;
+}
+#level-label { flex-shrink: 0; white-space: nowrap; }
+
 /* 逐字稿顯示區 */
 #tarea {
   background: var(--surface);
@@ -1121,6 +1140,10 @@ details[open] summary::before { transform: rotate(90deg); }
         <span id="recording-timer">00:00:00</span>
         <span id="recording-size"></span>
       </div>
+    </div>
+    <div id="level-meter" hidden>
+      <div id="level-bar-track"><div id="level-fill"></div></div>
+      <span id="level-label">收音正常</span>
     </div>
     <div class="btn-group-section">
       <div>
@@ -2201,6 +2224,7 @@ function startSilenceMonitor(stream) {
         showInfoToast('未偵測到明顯聲音，請確認麥克風或分頁音訊是否已開啟。', 5000);
       }
     }, 500);
+    startLevelBar();
   } catch (_) {
     stopSilenceMonitor();
   }
@@ -2218,6 +2242,42 @@ function stopSilenceMonitor() {
     try { silenceAudioCtx.close(); } catch (_) {}
     silenceAudioCtx = null;
   }
+  stopLevelBar();
+}
+
+// ── Level meter (reuses silenceAnalyser, no extra AudioContext) ────────────
+let _levelRaf = null;
+
+function startLevelBar() {
+  stopLevelBar();
+  const fill  = document.getElementById('level-fill');
+  const label = document.getElementById('level-label');
+  const wrap  = document.getElementById('level-meter');
+  if (!fill || !silenceAnalyser) return;
+  wrap.hidden = false;
+  const data = new Uint8Array(silenceAnalyser.fftSize);
+  let silentFrames = 0;
+  function tick() {
+    _levelRaf = requestAnimationFrame(tick);
+    if (!silenceAnalyser) return;
+    silenceAnalyser.getByteTimeDomainData(data);
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
+    const rms = Math.sqrt(sum / data.length);
+    const pct = Math.min(100, rms * 600);
+    fill.style.width = pct + '%';
+    fill.style.background = pct > 45 ? '#22C55E' : pct > 15 ? '#F59E0B' : '#94A3B8';
+    silentFrames = rms < 0.004 ? silentFrames + 1 : 0;
+    label.textContent = silentFrames > 150 ? '⚠️ 未偵測到聲音' : '收音正常';
+  }
+  tick();
+}
+
+function stopLevelBar() {
+  cancelAnimationFrame(_levelRaf);
+  _levelRaf = null;
+  const wrap = document.getElementById('level-meter');
+  if (wrap) wrap.hidden = true;
 }
 
 function shouldSkipSilentSegment() {
