@@ -335,6 +335,10 @@ button:active:not(:disabled) { transform: translateY(0); }
 [data-theme="dark"] .seg-badge-correcting { background: #431407; color: #FB923C; border-color: #9A3412; }
 [data-theme="dark"] .seg-card[data-status="correcting"] { border-color: #9A3412; background: #1A0A04; }
 [data-theme="dark"] .seg-card[data-status="final"]      { border-color: var(--accent-bdr); }
+.seg-retry-btn {
+  margin-top: .55rem; align-self: flex-start;
+  font-size: .78rem; padding: .28rem .65rem;
+}
 
 /* Toast */
 #toast {
@@ -1350,6 +1354,9 @@ let initialFeedbackTimer = null;
 let adaptiveChunkMin  = null; // temporary chunk override triggered by repetition
 let adaptiveSegsLeft  = 0;    // remaining segments with adaptive chunk
 
+// ── IndexedDB segment backup ───────────────────────────────────────────────
+let segNumToSegsIdx = {}; // segNum → index in sessionSegs, enables in-place retry
+
 // ── Feature 2: timing state ────────────────────────────────────────────────
 let recordingStartMs = 0;   // Date.now() when beginRecording() was called
 let chunkStartMs     = 0;   // Date.now() when current chunk's recorder.start() was called
@@ -2327,8 +2334,10 @@ function beginRecording(stream) {
   segResultBuffer  = {};
   adaptiveChunkMin = null;
   adaptiveSegsLeft = 0;
+  segNumToSegsIdx  = {};
   currentRecordingSession = null;
   if (!currentSessionId) currentSessionId = `session_${Date.now()}`;
+  dbClearOldSessions(currentSessionId);
   recordingStartMs = Date.now();
   chunkStartMs     = Date.now();
   setRecordingSizeLabel('');
@@ -2443,7 +2452,8 @@ function startRecorderOnStream(stream) {
     }
 
     // Fire API call in background; cleanup only after all calls settle
-    sealSegCard(mySegNum);
+    sealSegCard(mySegNum, segStartSec, segEndSec);
+    dbSaveSegment(currentSessionId, mySegNum, blob, segStartSec, segEndSec);
     pendingApiCount++;
     _startApiWait();
     status(`轉錄第 ${mySegNum} 段中...`, 'proc');
@@ -2882,10 +2892,13 @@ function updateActiveSegCardCountdown() {
   countdown.textContent = `${formatElapsed(elapsed)} · 剩餘 ${formatElapsed(remaining)}`;
 }
 
-function sealSegCard(segNum) {
+function sealSegCard(segNum, startSec, endSec) {
   const card = segCardEl(segNum);
   if (!card) return;
   card.dataset.status = 'correcting';
+  if (startSec != null) card.dataset.start = startSec;
+  if (endSec   != null) card.dataset.end   = endSec;
+  card.dataset.session = currentSessionId;
   const badge = card.querySelector('.seg-badge');
   if (badge) { badge.className = 'seg-badge seg-badge-correcting'; badge.textContent = '⟳ 校正中'; }
   const cd = card.querySelector('.seg-countdown');
@@ -2918,9 +2931,18 @@ function _updateSegCard(segNum, time, text, translation, isError, startSec, endS
     translation = inlineTranscriptText(translation);
   }
   const seg = { time, text, translation, isError, startSec, endSec };
-  sessionSegs.push(seg);
   const recSession = currentRecordingSession;
-  if (recSession) { if (!recSession.segments) recSession.segments = []; recSession.segments.push(seg); }
+  if (segNum !== null && segNumToSegsIdx[segNum] !== undefined) {
+    // In-place replace for retry
+    const idx = segNumToSegsIdx[segNum];
+    sessionSegs[idx] = seg;
+    if (recSession?.segments) recSession.segments[idx] = seg;
+  } else {
+    const idx = sessionSegs.length;
+    if (segNum !== null) segNumToSegsIdx[segNum] = idx;
+    sessionSegs.push(seg);
+    if (recSession) { if (!recSession.segments) recSession.segments = []; recSession.segments.push(seg); }
+  }
 
   const card = segCardEl(segNum);
   if (!card) { _renderSeg(time, text, translation, isError, startSec, endSec); return; }
@@ -2934,7 +2956,16 @@ function _updateSegCard(segNum, time, text, translation, isError, startSec, endS
     card.dataset.status = 'error';
     if (badge) { badge.className = 'seg-badge seg-badge-error'; badge.textContent = '⚠ 失敗'; }
     if (body) body.textContent = text;
+    if (segNum !== null) {
+      card.querySelectorAll('.seg-retry-btn').forEach(b => b.remove());
+      const btn = document.createElement('button');
+      btn.className = 'bs seg-retry-btn';
+      btn.textContent = '🔄 重新轉錄';
+      btn.onclick = () => retranscribeSegment(segNum);
+      card.appendChild(btn);
+    }
   } else {
+    card.querySelectorAll('.seg-retry-btn').forEach(b => b.remove());
     card.dataset.status = 'final';
     if (badge) { badge.className = 'seg-badge seg-badge-final'; badge.textContent = '✓ 已定稿'; }
     if (body) {
@@ -3183,6 +3214,98 @@ function blobToBase64(blob) {
     r.onerror   = rej;
     r.readAsDataURL(blob);
   });
+}
+
+// ── IndexedDB audio backup ─────────────────────────────────────────────────
+const AUDIO_DB_NAME    = 'transcript-audio-v1';
+const AUDIO_DB_VERSION = 1;
+const AUDIO_STORE_NAME = 'segments';
+
+let _audioDb = null;
+
+function openAudioDb() {
+  if (_audioDb) return Promise.resolve(_audioDb);
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(AUDIO_DB_NAME, AUDIO_DB_VERSION);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(AUDIO_STORE_NAME))
+        db.createObjectStore(AUDIO_STORE_NAME, { keyPath: 'id' });
+    };
+    req.onsuccess = e => { _audioDb = e.target.result; res(_audioDb); };
+    req.onerror   = () => rej(req.error);
+  });
+}
+
+async function dbSaveSegment(sessionId, segNum, blob, startSec, endSec) {
+  try {
+    const db = await openAudioDb();
+    const id  = `${sessionId}_${segNum}`;
+    const rec = { id, sessionId, segNum, blob, mimeType: blob.type, startSec, endSec, createdAt: Date.now() };
+    await new Promise((res, rej) => {
+      const tx = db.transaction(AUDIO_STORE_NAME, 'readwrite');
+      tx.objectStore(AUDIO_STORE_NAME).put(rec);
+      tx.oncomplete = res;
+      tx.onerror    = () => rej(tx.error);
+    });
+  } catch (_) {}
+}
+
+async function dbLoadBlob(sessionId, segNum) {
+  try {
+    const db = await openAudioDb();
+    const id  = `${sessionId}_${segNum}`;
+    return await new Promise((res, rej) => {
+      const tx  = db.transaction(AUDIO_STORE_NAME, 'readonly');
+      const req = tx.objectStore(AUDIO_STORE_NAME).get(id);
+      req.onsuccess = () => res(req.result?.blob ?? null);
+      req.onerror   = () => rej(req.error);
+    });
+  } catch (_) { return null; }
+}
+
+async function dbClearOldSessions(currentSessionId) {
+  try {
+    const db = await openAudioDb();
+    await new Promise((res, rej) => {
+      const tx    = db.transaction(AUDIO_STORE_NAME, 'readwrite');
+      const store = tx.objectStore(AUDIO_STORE_NAME);
+      const req   = store.openCursor();
+      req.onsuccess = e => {
+        const cursor = e.target.result;
+        if (!cursor) return;
+        if (cursor.value.sessionId !== currentSessionId) cursor.delete();
+        cursor.continue();
+      };
+      tx.oncomplete = res;
+      tx.onerror    = () => rej(tx.error);
+    });
+  } catch (_) {}
+}
+
+// ── Per-segment retry ──────────────────────────────────────────────────────
+async function retranscribeSegment(segNum) {
+  const card = segCardEl(segNum);
+  if (!card) return;
+  const sid      = card.dataset.session;
+  const startSec = parseFloat(card.dataset.start ?? 0);
+  const endSec   = parseFloat(card.dataset.end   ?? 0);
+
+  const blob = await dbLoadBlob(sid, segNum);
+  if (!blob) {
+    showInfoToast('找不到此段音訊備援，無法重新轉錄。', 4000);
+    return;
+  }
+
+  // Reset card to correcting state
+  card.dataset.status = 'correcting';
+  const badge = card.querySelector('.seg-badge');
+  const body  = card.querySelector('.seg-card-body');
+  if (badge) { badge.className = 'seg-badge seg-badge-correcting'; badge.textContent = '⟳ 重轉中'; }
+  if (body)  body.textContent = '重新轉錄中...';
+  card.querySelectorAll('.seg-retry-btn').forEach(b => b.remove());
+
+  sendToGemini(blob, 0, segNum, startSec, endSec);
 }
 
 initChangelog();
