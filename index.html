@@ -3076,26 +3076,29 @@ function _renderSeg(time, text, translation, isError = false, startSec = null, e
     span.textContent = joinTranscriptText(mainText.textContent, text);
     mainText.appendChild(span);
 
-    // 同一次錄音的翻譯也接在同一個翻譯區塊，不逐段拆卡
+    // 有翻譯時逐段拆開顯示，與 _updateSegCard 一致
     if (translation) {
-      let tBlock = body.querySelector('.session-translation');
-      let tTxt = tBlock?.querySelector('.session-translation-text');
-      if (!tBlock || !tTxt) {
-        tBlock = document.createElement('div');
-        tBlock.className = 'session-translation seg-translation seg-fadein';
-        const lbl = document.createElement('div');
-        lbl.className = 'seg-translation-label';
-        lbl.textContent = document.getElementById('translate-to').value;
-        tTxt = document.createElement('div');
-        tTxt.className = 'session-translation-text';
-        tBlock.appendChild(lbl);
-        tBlock.appendChild(tTxt);
-        body.appendChild(tBlock);
-      }
-      const tSpan = document.createElement('span');
-      tSpan.className = 'seg-fadein';
-      tSpan.textContent = joinTranscriptText(tTxt.textContent, translation);
-      tTxt.appendChild(tSpan);
+      // 把剛加的 span 從 mainText 移到獨立 segBlock
+      const lastSpan = mainText.lastElementChild;
+      if (lastSpan) mainText.removeChild(lastSpan);
+      if (!mainText.textContent.trim()) body.removeChild(mainText);
+      const segBlock = document.createElement('div');
+      segBlock.className = 'seg-with-translation seg-fadein';
+      const origDiv = document.createElement('div');
+      origDiv.className = 'seg-text';
+      origDiv.textContent = text;
+      const tBlock = document.createElement('div');
+      tBlock.className = 'seg-translation';
+      const lbl = document.createElement('div');
+      lbl.className = 'seg-translation-label';
+      lbl.textContent = document.getElementById('translate-to').value;
+      const tTxt = document.createElement('div');
+      tTxt.textContent = translation;
+      tBlock.appendChild(lbl);
+      tBlock.appendChild(tTxt);
+      segBlock.appendChild(origDiv);
+      segBlock.appendChild(tBlock);
+      body.appendChild(segBlock);
     }
   }
 
@@ -3116,6 +3119,8 @@ function clearTranscript() {
   chunkIdx         = 0;
   nextDisplaySeg   = 1;
   segResultBuffer  = {};
+  segMeta          = {};
+  segNumToSegsIdx  = {};
   currentSessionId = null;
   document.getElementById('tarea').innerHTML =
     '<div class="empty">開始收音後，轉錄完成的內容會陸續顯示在這裡</div>';
@@ -3137,7 +3142,7 @@ function downloadTranscript() {
 
 // ── Download SRT ───────────────────────────────────────────────────────────
 function downloadSRT() {
-  const segs = sessionSegs.filter(s => !s.isError && s.startSec != null);
+  const segs = sessionSegs.filter(s => !s.isError && s.text && s.startSec != null);
   if (!segs.length) { status('⚠️ 尚無可匯出的 SRT 內容'); return; }
   function toSRTTime(sec) {
     const h = Math.floor(sec / 3600);
