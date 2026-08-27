@@ -339,6 +339,19 @@ button:active:not(:disabled) { transform: translateY(0); }
   margin-top: .55rem; align-self: flex-start;
   font-size: .78rem; padding: .28rem .65rem;
 }
+.seg-error-inline {
+  margin: .55rem 0; padding: .5rem .75rem;
+  background: var(--danger-soft); color: var(--danger);
+  border: 1px solid var(--danger-bdr); border-radius: var(--r-base);
+  font-size: .875rem; font-style: italic;
+  display: flex; align-items: flex-start; gap: .65rem; flex-wrap: wrap;
+}
+.seg-error-inline .seg-retry-btn { margin-top: 0; }
+.seg-with-translation {
+  margin-bottom: .85rem; padding-bottom: .85rem;
+  border-bottom: 1px solid var(--border);
+}
+.seg-with-translation:last-child { border-bottom: none; }
 
 /* Toast */
 #toast {
@@ -1361,6 +1374,7 @@ let adaptiveSegsLeft  = 0;    // remaining segments with adaptive chunk
 
 // ── IndexedDB segment backup ───────────────────────────────────────────────
 let segNumToSegsIdx = {}; // segNum → index in sessionSegs, enables in-place retry
+let segMeta         = {}; // segNum → { startSec, endSec, sessionId } for retry
 
 // ── Feature 2: timing state ────────────────────────────────────────────────
 let recordingStartMs = 0;   // Date.now() when beginRecording() was called
@@ -2348,6 +2362,7 @@ function beginRecording(stream) {
   adaptiveChunkMin = null;
   adaptiveSegsLeft = 0;
   segNumToSegsIdx  = {};
+  segMeta          = {};
   currentRecordingSession = null;
   if (!currentSessionId) currentSessionId = `session_${Date.now()}`;
   dbClearOldSessions(currentSessionId);
@@ -2877,65 +2892,25 @@ function segCardEl(segNum) {
 }
 
 function createActiveSegCard(segNum) {
-  const recSession = currentRecordingSession;
-  if (!recSession) return;
-  const sessionEl = renderRecordingSessionShell(recSession);
-  const body = sessionEl.querySelector('.recording-session-body');
-  const card = document.createElement('div');
-  card.className = 'seg-card seg-fadein';
-  card.dataset.seg = segNum;
-  card.dataset.status = 'recording';
-  card.innerHTML =
-    `<div class="seg-card-head">` +
-    `<span class="seg-badge seg-badge-recording">● 第 ${segNum} 段錄音中</span>` +
-    `<span class="seg-countdown"></span>` +
-    `</div><div class="seg-card-body"></div>`;
-  body.appendChild(card);
+  // Recording feedback is now handled by status bar + level meter.
   const area = document.getElementById('tarea');
   if (area && area.scrollHeight - area.scrollTop - area.clientHeight < 80)
     area.scrollTop = area.scrollHeight;
 }
 
 function updateActiveSegCardCountdown() {
-  const card = document.querySelector('.seg-card[data-status="recording"]');
-  if (!card) return;
-  const countdown = card.querySelector('.seg-countdown');
-  if (!countdown) return;
-  const userMin = parseInt(document.getElementById('chunk-min').value, 10) || 10;
-  const effectiveMin = (adaptiveChunkMin !== null && adaptiveSegsLeft > 0) ? adaptiveChunkMin : userMin;
-  const elapsed = Date.now() - chunkStartMs;
-  const remaining = Math.max(0, effectiveMin * 60 * 1000 - elapsed);
-  countdown.textContent = `${formatElapsed(elapsed)} · 剩餘 ${formatElapsed(remaining)}`;
+  // Status bar already shows elapsed time; no per-segment card to update.
 }
 
 function sealSegCard(segNum, startSec, endSec) {
-  const card = segCardEl(segNum);
-  if (!card) return;
-  card.dataset.status = 'correcting';
-  if (startSec != null) card.dataset.start = startSec;
-  if (endSec   != null) card.dataset.end   = endSec;
-  card.dataset.session = currentSessionId;
-  const badge = card.querySelector('.seg-badge');
-  if (badge) { badge.className = 'seg-badge seg-badge-correcting'; badge.textContent = '⟳ 校正中'; }
-  const cd = card.querySelector('.seg-countdown');
-  if (cd) cd.textContent = '';
+  segMeta[segNum] = { startSec, endSec, sessionId: currentSessionId };
 }
 
 function markSegCardSilent(segNum, startSec, endSec) {
-  const segObj = { time: '', text: '（此段未偵測到明確語音）', translation: null, isError: false, startSec, endSec };
+  const segObj = { time: '', text: '', translation: null, isError: false, startSec, endSec };
   sessionSegs.push(segObj);
   const recSession = currentRecordingSession;
   if (recSession) { if (!recSession.segments) recSession.segments = []; recSession.segments.push(segObj); }
-  const card = segCardEl(segNum);
-  if (card) {
-    card.dataset.status = 'silent';
-    const badge = card.querySelector('.seg-badge');
-    if (badge) { badge.className = 'seg-badge seg-badge-silent'; badge.textContent = '— 無語音'; }
-    const cd = card.querySelector('.seg-countdown');
-    if (cd) cd.textContent = '';
-    const body = card.querySelector('.seg-card-body');
-    if (body) body.textContent = '（此段未偵測到明確語音）';
-  }
   scheduleAutosave();
   scheduleFileBackup();
   updateExportButtons();
@@ -2949,7 +2924,6 @@ function _updateSegCard(segNum, time, text, translation, isError, startSec, endS
   const seg = { time, text, translation, isError, startSec, endSec };
   const recSession = currentRecordingSession;
   if (segNum !== null && segNumToSegsIdx[segNum] !== undefined) {
-    // In-place replace for retry
     const idx = segNumToSegsIdx[segNum];
     sessionSegs[idx] = seg;
     if (recSession?.segments) recSession.segments[idx] = seg;
@@ -2960,44 +2934,60 @@ function _updateSegCard(segNum, time, text, translation, isError, startSec, endS
     if (recSession) { if (!recSession.segments) recSession.segments = []; recSession.segments.push(seg); }
   }
 
-  const card = segCardEl(segNum);
-  if (!card) { _renderSeg(time, text, translation, isError, startSec, endSec); return; }
+  // Remove existing inline error for this segment (retry scenario)
+  if (segNum !== null)
+    document.querySelectorAll(`.seg-error-inline[data-seg="${segNum}"]`).forEach(el => el.remove());
 
-  const badge = card.querySelector('.seg-badge');
-  const cd    = card.querySelector('.seg-countdown');
-  const body  = card.querySelector('.seg-card-body');
-  if (cd) cd.textContent = '';
+  const sessionEl = renderRecordingSessionShell(recSession || currentRecordingSession || createRecordingSession(Date.now()));
+  const body = sessionEl.querySelector('.recording-session-body');
 
   if (isError) {
-    card.dataset.status = 'error';
-    if (badge) { badge.className = 'seg-badge seg-badge-error'; badge.textContent = '⚠ 失敗'; }
-    if (body) body.textContent = text;
+    const errBlock = document.createElement('div');
+    errBlock.className = 'seg-error-inline seg-fadein';
+    if (segNum !== null) errBlock.dataset.seg = segNum;
+    const msgSpan = document.createElement('span');
+    msgSpan.textContent = text;
+    errBlock.appendChild(msgSpan);
     if (segNum !== null) {
-      card.querySelectorAll('.seg-retry-btn').forEach(b => b.remove());
       const btn = document.createElement('button');
       btn.className = 'bs seg-retry-btn';
       btn.textContent = '🔄 重新轉錄';
       btn.onclick = () => retranscribeSegment(segNum);
-      card.appendChild(btn);
+      errBlock.appendChild(btn);
     }
-  } else {
-    card.querySelectorAll('.seg-retry-btn').forEach(b => b.remove());
-    card.dataset.status = 'final';
-    if (badge) { badge.className = 'seg-badge seg-badge-final'; badge.textContent = '✓ 已定稿'; }
-    if (body) {
-      body.textContent = text;
-      if (translation) {
-        const tBlock = document.createElement('div');
-        tBlock.className = 'seg-translation seg-fadein';
-        const lbl = document.createElement('div');
-        lbl.className = 'seg-translation-label';
-        lbl.textContent = document.getElementById('translate-to').value;
-        const tTxt = document.createElement('div');
-        tTxt.textContent = translation;
-        tBlock.appendChild(lbl);
-        tBlock.appendChild(tTxt);
-        body.appendChild(tBlock);
+    body.appendChild(errBlock);
+  } else if (text) {
+    // 無翻譯：純連續文字流
+    // 有翻譯：每段獨立顯示原文＋譯文
+    if (translation) {
+      const segBlock = document.createElement('div');
+      segBlock.className = 'seg-with-translation seg-fadein';
+      const origDiv = document.createElement('div');
+      origDiv.className = 'seg-text';
+      origDiv.textContent = text;
+      const tBlock = document.createElement('div');
+      tBlock.className = 'seg-translation';
+      const lbl = document.createElement('div');
+      lbl.className = 'seg-translation-label';
+      lbl.textContent = document.getElementById('translate-to').value;
+      const tTxt = document.createElement('div');
+      tTxt.textContent = translation;
+      tBlock.appendChild(lbl);
+      tBlock.appendChild(tTxt);
+      segBlock.appendChild(origDiv);
+      segBlock.appendChild(tBlock);
+      body.appendChild(segBlock);
+    } else {
+      let mainText = body.querySelector('.session-main');
+      if (!mainText) {
+        mainText = document.createElement('div');
+        mainText.className = 'session-main seg-text';
+        body.appendChild(mainText);
       }
+      const span = document.createElement('span');
+      span.className = 'seg-fadein';
+      span.textContent = joinTranscriptText(mainText.textContent, text);
+      mainText.appendChild(span);
     }
   }
 
@@ -3301,27 +3291,19 @@ async function dbClearOldSessions(currentSessionId) {
 
 // ── Per-segment retry ──────────────────────────────────────────────────────
 async function retranscribeSegment(segNum) {
-  const card = segCardEl(segNum);
-  if (!card) return;
-  const sid      = card.dataset.session;
-  const startSec = parseFloat(card.dataset.start ?? 0);
-  const endSec   = parseFloat(card.dataset.end   ?? 0);
+  const meta = segMeta[segNum];
+  if (!meta) { showInfoToast('找不到此段資訊，無法重新轉錄。', 4000); return; }
 
-  const blob = await dbLoadBlob(sid, segNum);
-  if (!blob) {
-    showInfoToast('找不到此段音訊備援，無法重新轉錄。', 4000);
-    return;
+  const blob = await dbLoadBlob(meta.sessionId, segNum);
+  if (!blob) { showInfoToast('找不到此段音訊備援，無法重新轉錄。', 4000); return; }
+
+  // Update inline error block to loading state
+  const errBlock = document.querySelector(`.seg-error-inline[data-seg="${segNum}"]`);
+  if (errBlock) {
+    errBlock.innerHTML = '⟳ 重新轉錄中...';
   }
 
-  // Reset card to correcting state
-  card.dataset.status = 'correcting';
-  const badge = card.querySelector('.seg-badge');
-  const body  = card.querySelector('.seg-card-body');
-  if (badge) { badge.className = 'seg-badge seg-badge-correcting'; badge.textContent = '⟳ 重轉中'; }
-  if (body)  body.textContent = '重新轉錄中...';
-  card.querySelectorAll('.seg-retry-btn').forEach(b => b.remove());
-
-  sendToGemini(blob, 0, segNum, startSec, endSec);
+  sendToGemini(blob, 0, segNum, meta.startSec, meta.endSec);
 }
 
 initChangelog();
