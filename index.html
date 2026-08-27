@@ -2765,7 +2765,7 @@ async function sendToGemini(blob, modelIdx = 0, segNum = null, startSec = null, 
 
     markModelSuccess(model);
 
-    // 重試後仍有重複 → 通知使用者並啟動自適應分段縮短
+    // 重試後仍有重複 → 標記為錯誤、顯示重轉按鈕、啟動自適應縮短
     if (hasRepeat) {
       const userChunk = parseInt(document.getElementById('chunk-min').value, 10) || 10;
       if (userChunk > 3 && adaptiveSegsLeft === 0) {
@@ -2773,8 +2773,11 @@ async function sendToGemini(blob, modelIdx = 0, segNum = null, startSec = null, 
         adaptiveSegsLeft = 2;
         showInfoToast(`重複仍存在，已自動將下 2 段縮短為 ${adaptiveChunkMin} 分鐘`, 5000);
       } else {
-        showInfoToast('此段重複已截斷，建議在設定中縮短轉錄間隔至 3–5 分鐘', 5000);
+        showInfoToast('此段重複已截斷，建議縮短轉錄間隔至 3 分鐘', 5000);
       }
+      appendSeg(now, '⚠️ 此段偵測到大量重複輸出（音訊備援已保留）。可點「重新轉錄」補轉，或縮短轉錄間隔後再試。', null, segNum, true, startSec, endSec);
+      status(`第 ${segNum ?? chunkIdx} 段重複截斷`, 'rec');
+      return;
     }
 
     appendSeg(now, origText, transText, segNum, false, startSec, endSec);
